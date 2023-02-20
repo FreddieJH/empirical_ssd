@@ -1,0 +1,24 @@
+---
+title: "Background information"
+author: "Freddie Heather, Shane Richards, & Asta Audzijonyte"
+date: last-modified
+format: html
+editor: visual
+author-title: "Authors"
+published-title: "Last modified"
+bibliography: references.bib
+---
+
+## From protists to fish?
+
+@giometto2013 used an experimental set up of 13 protist species to show that body size (volume, $\micro m$) for each species could be described by a single parameter value, mean body size. When normalising observed body size to the mean body size of the species, all 13 species showed a similar pattern in their body size distributions (@fig-giometto).
+
+![Protist body size distributions can be described by a single parameter; mean body size. n = 13 species. Figure taken from @giometto2013.](images/image-2136353540.png){#fig-giometto}
+
+This leads us to the questions:
+
+1.  Does this pattern hold for fish species?
+2.  Is the pattern really that interesting? I.e. due to the log-log axis and the scaling, is the variation in the tails of the distribution really where the distributions differ? In other words, does the \$\\sigma\^2\$ parameter of the lognormal distribution really not matter in determining the overall species body size distribution?
+3.  Does a lognormal distribution fit well to the observed data?
+4.  Can we find another distribution that fits better than the lognormal? or add a parameter to the lognormal distribution to account for the 'deviation' from lognormal?
+5.  What is the minimum number of parameters required to fit a distribution to the empirical data that encompasses both the shape and some measure of skewness (maybe a proxy for disturbance).

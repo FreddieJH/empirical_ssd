@@ -1,0 +1,20 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Empirical species size distribution"
+  sidebar:
+    search: false
+    style: "docked"
+    contents:
+      - href: index.qmd
+        text: Background
+      - href: n3_spp_system.qmd
+        text: Simple system
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true

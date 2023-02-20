@@ -1,0 +1,28 @@
+---
+title: "Starting simple"
+author: "Freddie Heather, Shane Richards, & Asta Audzijonyte"
+date: last-modified
+format: html
+editor: visual
+author-title: "Authors"
+published-title: "Last modified"
+bibliography: references.bib
+---
+
+## Background
+
+We want to chose three fish species from the RLS dataset. These species should ideally be non-target species for fisheries, should cover multiple size classes, and should be relatively abundant.
+
+Fishing pressure data are taken from supplementary table 1 of @audzijonyte2020.
+
+```{r}
+library(tidyverse)
+
+
+nontarget_spp <- 
+  read_csv("data/audzijonyte_nee_supplementary_table_1_fishing.csv") |> 
+  filter(fisheries_target == "rarely") |> 
+  pull(species)
+
+head(nontarget_spp)
+```
