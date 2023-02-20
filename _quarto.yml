@@ -12,6 +12,8 @@ website:
         text: Background
       - href: n3_spp_system.qmd
         text: Simple system
+      - href: shane_jervisbay.qmd
+        text: Jervis Bay (Shane)
 
 format:
   html:

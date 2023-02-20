@@ -1,6 +1,6 @@
 ---
-title: "Starting simple"
-author: "Freddie Heather, Shane Richards, & Asta Audzijonyte"
+title: "Are length distributions within species normal or log-normal?"
+author: "Shane Richards"
 date: last-modified
 format: html
 editor: visual
@@ -19,135 +19,35 @@ knitr::opts_chunk$set(
   warning = FALSE, 
   message = FALSE
 )
-
-source("R/data_cleaning.R")
 ```
 
-## Background
+## *Set-up*
+
+**Note:** For this script to work, you must be using R version older than 4.2. This is because Rstan has problems with Rv4.2+.
+
+### *Packages + raw data*
 
 ```{r}
+
 library(tidyverse)
-library(arrow)
+library(ggrepel)
+library(rstan)
+library(bayesplot)
+library(cowplot)
+library(RColorBrewer)
+
+df_single <- read_csv("data/raw/JBMP_S3_clean.csv") # read in individual lengths
 ```
 
-We want to chose three fish species from the RLS dataset. These species should ideally be non-target species for fisheries, should cover multiple size classes, and should be relatively abundant.
-
-### Non-target species
-
-Fishing pressure data are taken from supplementary table 1 of @audzijonyte2020.
+### *Data Wrangling*
 
 ```{r}
-
-# Species that we will consider (minimal fishing pressure)
-nontarget_spp <- 
-  read_csv("data/audzijonyte_nee_supplementary_table_1_fishing.csv") |> 
-  filter(fisheries_target == "rarely") |> 
-  pull(species)
-
-head(nontarget_spp)
-
-```
-
-### Relatively abundant species
-
-For this we need abundance data. These data are from all across Australia.
-
-```{r}
-# Each row is a single individual observation
-obs_data <- read_parquet("data/raw/obs_data_m1_aus.parquet")
-
-head(obs_data)
-```
-
-We are selecting species that are in the 90% percentile of abundance.
-
-```{r}
-
-spp_byabundance <- 
-  read_parquet("data/raw/obs_data_m1_aus.parquet") |> 
-  count(species_name) |> 
-  arrange(desc(n)) 
-
-# The 90% percentile of abundance
-abundance_cutoff <- 
-  spp_byabundance |> 
-  pull(n) |> 
-  quantile(probs = 0.9) |> 
-  as.numeric()
-
-abundant_spp <- 
-  spp_byabundance |> 
-  filter(n >= abundance_cutoff) |> 
-  pull(species_name)
-
-```
-
-### Range of body sizes
-
-To satisfy this criteria, we are selecting species from the full range of mean body sizes. Species are selected from equally spaced from the smallest to the largest mean body size.
-
-```{r}
-
-suitable_spp <- 
-  obs_data |> 
-  summarise(mean_size = mean(size_class), 
-            .by = "species_name") |> 
-  arrange(mean_size) |> 
-  filter(species_name %in% nontarget_spp) |> 
-  filter(species_name %in% abundant_spp)
-
-# Of the suitable species we want an equal spacing of body size
-equal_spaced_bodysize <- 
-  seq(from = 1, to = nrow(suitable_spp), length.out = n_spp) |> round()
-
-# 20 species across the range of sizes
-selected_spp <- 
-  suitable_spp[equal_spaced_bodysize, ] |> 
-  pull(species_name)
-    
-```
-
-```{r}
-
-# How many species we want to model
-n_spp <- 20
-
-# The most abundant species (number specified above)
-# only selecting non-target species
-selected_spp <- 
-  read_parquet("data/raw/obs_data_m1_aus.parquet") |> 
-  count(species_name) |> 
-  arrange(desc(n)) |> 
-  filter(species_name %in% nontarget_spp) |> 
-  head(n_spp) |> 
-  pull(species_name)
-
-# The selected species
-selected_spp
-
-```
-
-## Data wrangling 
-
-```{r}
-
-spp_list <- 
-  tibble(
-    species_name = selected_spp, 
-    species_indx = 1:length(selected_spp)
-  )
-
-obs_data_filter <- 
-  obs_data |> 
-  filter(species_name %in% selected_spp)
 
 # create a vector of bin length boundaries
-cutoff <- c(
-  2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
+cutoff = c(2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
   seq(from=62.5, to=200, by=12.5), 
   seq(from=250, to=500, by=50))
-
-rls_bins <- c(0, cutoff)
+rls_bins = c(0, cutoff)
 
 # create a data frame that links fish lengths with bin indices
 df_cutoff <- tibble(
@@ -156,29 +56,20 @@ df_cutoff <- tibble(
 )
 
 # add bin indices to the dataset
-df_single <- 
-  obs_data_filter |> 
-  left_join(df_cutoff, 
-            by = "size_class")
+df_single <- left_join(df_single, df_cutoff, by = "size_class")
 
 # calculate species counts and mean species lengths
 df_abundance <- 
   df_single %>%
-  left_join(spp_list, 
-            by = "species_name") |> 
-  summarise(Total_N = n(), 
-            Mean_L = mean(size_class), 
-            .by = "species_indx")
+  group_by(spp_id) %>%
+  summarise(.groups = "drop", Total_N = n(), Mean_L = mean(size_class))
 
 # group counts of same species of same size 
-df_fit <- 
-  df_single %>%
-  left_join(spp_list, 
-            by = "species_name") |> 
-  summarise( n = n(), 
-            .by = c(species_indx, size_indx)) %>%   # calc fish in bin
+df_fit <- df_single %>%
+  group_by(spp_id, size_indx, w) %>%
+  summarise(.groups = "drop", n = n()) %>%   # calc fish in bin
   left_join(df_cutoff, by = "size_indx") %>% # add size class info
-  left_join(df_abundance, by = "species_indx") %>% # add species abundances
+  left_join(df_abundance, by = "spp_id") %>% # add species abundances
 	mutate(f_obs = n/Total_N) # calc fraction of individuals in size class
 
 glimpse(df_fit) # show info used when fitting
@@ -187,50 +78,36 @@ glimpse(df_fit) # show info used when fitting
 ## *Data plots*
 
 ```{r fig.width=9, height = 3}
+df_plot <- df_fit %>% filter(Total_N > 20) # limit plot to abundant species
+spp_plotted <- sort(unique(df_plot$spp_id)) # species plotted
 
-spp_plotted <- sort(unique(df_fit$spp_name)) # species plotted
-
-df_fit |> 
-  ggplot() + 
-  aes(x = size_class, 
-	                         y = n) + 
-	geom_point() + 
-	geom_line() +
-	facet_wrap( ~ species_name, ncol = 5) +
+ggplot(data = df_plot) + 
+	geom_point(mapping = aes(x = size_class, y = n)) + 
+	geom_line(mapping = aes(x = size_class, y = n)) +
+	facet_wrap( ~ spp_id, ncol = 5) +
 	scale_y_log10() + scale_x_log10() +
 	labs(x = "Fish length (cm)",  y = "Fish abundance") +
 	theme_bw()
-
 ```
 
 ```{r fig.width=9, height = 3}
-
-df_fit |> 
-  ggplot() + 
-    aes(x = size_class, 
-	                         y = n) + 
-	geom_point() + 
-	geom_line() +
-	facet_wrap( ~ species_name, ncol = 5) +
+ggplot(df_plot) + # limit to abundant species
+	geom_point(mapping = aes(x = size_class, y = n)) + 
+	geom_line(mapping = aes(x = size_class, y = n)) +
+	facet_wrap( ~ spp_id, ncol = 5) +
 	scale_y_log10() + 
-	labs(x = "Fish length (cm)",
-	     y = "Fish abundance") +
+	labs(x = "Fish length (cm)",y = "Fish abundance") +
 	theme_bw()
-
 ```
 
 ```{r}
-
-df_abundance |> 
-  ggplot() +
-  aes(x = Mean_L, y = Total_N, label = species_name) +
+ggplot(data = df_abundance, 
+	  aes(x = Mean_L, y = Total_N, label = spp_id)) +
 	geom_point(color = "red") + 
-	labs(x = "Observed mean fish length (cm)", 
-	     y = "Abundance") +
-	scale_y_log10() +
-  scale_x_log10() + 
+	# geom_text_repel(size = 2.5) +
+	labs(x = "Observed mean fish length (cm)", y ="Abundance") +
+	scale_y_log10() + scale_x_log10() + 
 	theme_bw()
-
 ```
 
 ## *Bayesian Model Fit*
@@ -238,14 +115,14 @@ df_abundance |>
 ```{r}
 I <- nrow(df_fit)          # daily observations
 B <- max(df_fit$size_indx) # maximum bin group
-S <- max(df_fit$species_indx) # maximum bin group
+S <- max(df_fit$spp_id) # maximum bin group
 
 stan_dat <- list(
   I = I, # number of observations
 	S = S, # number od species
 	B = B, # number of bins
 	l = cutoff[1:B], # length cut-offs
-	s = df_fit$species_indx, # species
+	s = df_fit$spp_id, # species
 	b = df_fit$size_indx, # length bin
 	n = df_fit$n) # individual counts    
 
@@ -254,25 +131,22 @@ glimpse(stan_dat) # show data fed to rstan
 
 ```{r}
 
+# fit the normal pdf model!
 fit_n <- 
   stan(
     file = "data/stan_models/NormalFit.stan", 
     data = stan_dat,
-    iter = 1000, 
-    warmup = 500, 
+    iter = 400, 
+    warmup = 200, 
     chains = 3, 
-    refresh = 300, 
+    refresh = 200, 
     seed = 1, 
   )
 ```
 
-
-Model does not want to run, the chains do not converge and we get a large R-hat value
-
 ```{r}
-
 # check out some predicted model parameters and log-likelihood
-model_par <- c("lp__", "ln_cv", "ln_mu[1]", "ln_mu[10]", "ln_mu[20]")
+model_par <- c("lp__", "ln_cv", "ln_mu[66]", "ln_mu[4]", "ln_mu[44]")
 
 # check for chain convergence
 rstan::traceplot(object = fit_n, pars = model_par, inc_warmup = TRUE, ncol = 5)
@@ -298,7 +172,6 @@ ggplot(df_pred_spp) +
 	geom_point(aes(x =Spp, y = medn)) +
 	labs(x = "Species id", y = "Mean length (cm)", subtitle = "Bars = 90%CI for mean") +
 	theme_bw()
-
 ```
 
 ```{r}
@@ -426,3 +299,5 @@ mean(ll_ln$lp__) # log-likelihood of log-normal assumption
 ll_n <- rstan::extract(fit_n, pars = c("lp__"))
 mean(ll_n$lp__) # log-likelihood of log-normal assumption
 ```
+
+-   *normal wins!*
