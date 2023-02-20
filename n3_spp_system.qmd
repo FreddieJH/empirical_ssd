@@ -40,8 +40,8 @@ Fishing pressure data are taken from supplementary table 1 of @audzijonyte2020.
 
 # Species that we will consider (minimal fishing pressure)
 nontarget_spp <- 
-  read_csv("data/audzijonyte_nee_supplementary_table_1_fishing.csv") |> 
-  filter(fisheries_target == "rarely") |> 
+  read_csv("data/audzijonyte_nee_supplementary_table_1_fishing.csv") %>% 
+  filter(fisheries_target == "rarely") %>% 
   pull(species)
 
 head(nontarget_spp)
@@ -64,20 +64,20 @@ We are selecting species that are in the 90% percentile of abundance.
 ```{r}
 
 spp_byabundance <- 
-  read_parquet("data/raw/obs_data_m1_aus.parquet") |> 
-  count(species_name) |> 
+  read_parquet("data/raw/obs_data_m1_aus.parquet") %>% 
+  count(species_name) %>% 
   arrange(desc(n)) 
 
 # The 90% percentile of abundance
 abundance_cutoff <- 
-  spp_byabundance |> 
-  pull(n) |> 
-  quantile(probs = 0.9) |> 
+  spp_byabundance %>% 
+  pull(n) %>% 
+  quantile(probs = 0.9) %>% 
   as.numeric()
 
 abundant_spp <- 
-  spp_byabundance |> 
-  filter(n >= abundance_cutoff) |> 
+  spp_byabundance %>% 
+  filter(n >= abundance_cutoff) %>% 
   pull(species_name)
 
 ```
@@ -89,20 +89,20 @@ To satisfy this criteria, we are selecting species from the full range of mean b
 ```{r}
 
 suitable_spp <- 
-  obs_data |> 
+  obs_data %>% 
   summarise(mean_size = mean(size_class), 
-            .by = "species_name") |> 
-  arrange(mean_size) |> 
-  filter(species_name %in% nontarget_spp) |> 
+            .by = "species_name") %>% 
+  arrange(mean_size) %>% 
+  filter(species_name %in% nontarget_spp) %>% 
   filter(species_name %in% abundant_spp)
 
 # Of the suitable species we want an equal spacing of body size
 equal_spaced_bodysize <- 
-  seq(from = 1, to = nrow(suitable_spp), length.out = n_spp) |> round()
+  seq(from = 1, to = nrow(suitable_spp), length.out = n_spp) %>% round()
 
 # 20 species across the range of sizes
 selected_spp <- 
-  suitable_spp[equal_spaced_bodysize, ] |> 
+  suitable_spp[equal_spaced_bodysize, ] %>% 
   pull(species_name)
     
 ```
@@ -115,11 +115,11 @@ n_spp <- 20
 # The most abundant species (number specified above)
 # only selecting non-target species
 selected_spp <- 
-  read_parquet("data/raw/obs_data_m1_aus.parquet") |> 
-  count(species_name) |> 
-  arrange(desc(n)) |> 
-  filter(species_name %in% nontarget_spp) |> 
-  head(n_spp) |> 
+  read_parquet("data/raw/obs_data_m1_aus.parquet") %>% 
+  count(species_name) %>% 
+  arrange(desc(n)) %>% 
+  filter(species_name %in% nontarget_spp) %>% 
+  head(n_spp) %>% 
   pull(species_name)
 
 # The selected species
@@ -138,7 +138,7 @@ spp_list <-
   )
 
 obs_data_filter <- 
-  obs_data |> 
+  obs_data %>% 
   filter(species_name %in% selected_spp)
 
 # create a vector of bin length boundaries
@@ -157,7 +157,7 @@ df_cutoff <- tibble(
 
 # add bin indices to the dataset
 df_single <- 
-  obs_data_filter |> 
+  obs_data_filter %>% 
   left_join(df_cutoff, 
             by = "size_class")
 
@@ -165,7 +165,7 @@ df_single <-
 df_abundance <- 
   df_single %>%
   left_join(spp_list, 
-            by = "species_name") |> 
+            by = "species_name") %>% 
   summarise(Total_N = n(), 
             Mean_L = mean(size_class), 
             .by = "species_indx")
@@ -174,7 +174,7 @@ df_abundance <-
 df_fit <- 
   df_single %>%
   left_join(spp_list, 
-            by = "species_name") |> 
+            by = "species_name") %>% 
   summarise( n = n(), 
             .by = c(species_indx, size_indx)) %>%   # calc fish in bin
   left_join(df_cutoff, by = "size_indx") %>% # add size class info
@@ -190,7 +190,7 @@ glimpse(df_fit) # show info used when fitting
 
 spp_plotted <- sort(unique(df_fit$spp_name)) # species plotted
 
-df_fit |> 
+df_fit %>% 
   ggplot() + 
   aes(x = size_class, 
 	                         y = n) + 
@@ -205,7 +205,7 @@ df_fit |>
 
 ```{r fig.width=9, height = 3}
 
-df_fit |> 
+df_fit %>% 
   ggplot() + 
     aes(x = size_class, 
 	                         y = n) + 
@@ -221,7 +221,7 @@ df_fit |>
 
 ```{r}
 
-df_abundance |> 
+df_abundance %>% 
   ggplot() +
   aes(x = Mean_L, y = Total_N, label = species_name) +
 	geom_point(color = "red") + 
