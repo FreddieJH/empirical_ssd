@@ -93,11 +93,11 @@ dat_obs <-
   read_parquet()
 
 
+# created using the find_lmax() function of the freddiejh/sbss package
 lmax_table <-
-  dat_obs |> 
-  select(species_name) |> 
-  distinct() |> 
-  find_lmax()
+  "data/cleaned/lmax_table.parquet" |> 
+  read_parquet()
+
 
 
 ```
