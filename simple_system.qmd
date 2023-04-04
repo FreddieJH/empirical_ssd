@@ -1,0 +1,902 @@
+---
+title: "Starting simple"
+author: "Freddie Heather, Shane Richards, & Asta Audzijonyte"
+date: last-modified
+format: html
+editor: visual
+author-title: "Authors"
+published-title: "Last modified"
+bibliography: references.bib
+---
+
+```{r}
+#| include = FALSE
+
+library(knitr)
+
+knitr::opts_chunk$set(
+  error = FALSE,
+  warning = FALSE, 
+  message = FALSE
+)
+
+source("R/data_cleaning.R")
+```
+
+## Set-up
+
+### Required packages
+
+```{r}
+
+library(tidyverse)
+library(arrow)
+library(rstan)
+
+```
+
+We want to chose a subsection of fish species from the RLS dataset. These species should ideally be non-target species for fisheries, should cover multiple size classes, and should be relatively abundant.
+
+### Non-target species
+
+Species-level fishing pressure data are taken from supplementary table 1 of @audzijonyte2020.
+
+```{r}
+
+# Species that we will consider (minimal fishing pressure)
+nontarget_spp <- 
+  read_csv("data/raw/audzijonyte_nee_supplementary_table_1_fishing.csv") %>% 
+  filter(fisheries_target == "rarely") %>% 
+  pull(species)
+
+head(nontarget_spp)
+
+```
+
+### Relatively abundant species
+
+For this we need abundance data. These data are from all across Australia.
+
+```{r}
+# Each row is a single individual observation
+obs_data <- read_parquet("data/raw/obs_data_m1_aus.parquet")
+
+head(obs_data)
+
+```
+
+We are selecting species that are in the 90% percentile of abundance.
+
+```{r}
+
+spp_byabundance <- 
+  read_parquet("data/raw/obs_data_m1_aus.parquet") %>% 
+  count(species_name) %>% 
+  arrange(desc(n)) 
+
+# The 90% percentile of abundance
+abundance_cutoff <- 
+  spp_byabundance %>% 
+  pull(n) %>% 
+  quantile(probs = 0.9) %>% 
+  as.numeric()
+
+abundant_spp <- 
+  spp_byabundance %>% 
+  filter(n >= abundance_cutoff) %>% 
+  pull(species_name)
+
+```
+
+### Range of body sizes
+
+To satisfy this criteria, we are selecting species from the full range of mean body sizes. Species are selected from equally spaced from the smallest to the largest mean body size.
+
+```{r}
+
+# How many species we want to model
+n_spp <- 500
+
+suitable_spp <- 
+  obs_data %>% 
+  group_by(species_name) |> 
+  summarise(mean_size = mean(size_class), 
+            .groups = "drop") %>% 
+  arrange(mean_size) %>% 
+  filter(species_name %in% nontarget_spp) %>% 
+  filter(species_name %in% abundant_spp)
+
+# Of the suitable species we want an equal spacing of body size
+equal_spaced_bodysize <- 
+  seq(from = 1, to = nrow(suitable_spp), length.out = n_spp) %>% round()
+
+# 20 species across the range of sizes
+selected_spp <- 
+  suitable_spp[equal_spaced_bodysize, ] %>% 
+  pull(species_name)
+
+```
+
+```{r}
+
+
+# The most abundant species (number specified above)
+# only selecting non-target species
+selected_spp <- 
+  read_parquet("data/raw/obs_data_m1_aus.parquet") %>% 
+  count(species_name) %>% 
+  arrange(desc(n)) %>% 
+  filter(species_name %in% nontarget_spp) %>% 
+  head(n_spp) %>% 
+  pull(species_name)
+
+# The selected species
+selected_spp
+
+
+write_rds(selected_spp, "output/data/selected_spp.rds")
+
+```
+
+## Data wrangling
+
+```{r}
+
+spp_list <- 
+  tibble(
+    species_name = selected_spp, 
+    species_indx = 1:length(selected_spp)
+  )
+
+obs_data_filter <- 
+  obs_data %>% 
+  filter(species_name %in% selected_spp)
+
+# create a vector of bin length boundaries
+cutoff <- c(
+  2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
+  seq(from = 62.5, to = 200, by = 12.5), 
+  seq(from = 250, to = 500, by = 50))
+
+rls_bins <- c(0, cutoff)
+
+# create a data frame that links fish lengths with bin indices
+df_cutoff <- tibble(
+  size_class = cutoff,
+  size_indx = 1:length(cutoff)
+)
+
+# add bin indices to the dataset
+df_single <- 
+  obs_data_filter %>% 
+  left_join(df_cutoff, 
+            by = "size_class")
+
+# calculate species counts and mean species lengths
+df_abundance <- 
+  df_single %>%
+  left_join(spp_list, 
+            by = "species_name") %>% 
+  summarise(Total_N = n(), 
+            Mean_L = mean(size_class), 
+            .by = "species_indx") %>%
+  left_join(spp_list, by = "species_indx")
+
+# group counts of same species of same size 
+df_fit <- 
+  df_single %>%
+  left_join(spp_list, 
+            by = "species_name") %>% 
+  summarise( n = n(), 
+             .by = c(species_indx, size_indx)) %>%   # calc fish in bin
+  left_join(df_cutoff, by = "size_indx") %>% # add size class info
+  left_join(df_abundance, by = "species_indx") %>% # add species abundances
+  mutate(f_obs = n/Total_N) # calc fraction of individuals in size class
+
+glimpse(df_fit) # show info used when fitting
+
+```
+
+## *Data plots*
+
+```{r fig.width=9, height = 3}
+
+df_fit %>% 
+  filter(species_name %in% sample(selected_spp, size = 50)) |> 
+  ggplot() + 
+  aes(x = size_class, 
+      y = n) + 
+  geom_point() + 
+  geom_line() +
+  facet_wrap( ~ species_name, ncol = 5) +
+  scale_y_log10() + 
+  scale_x_log10() +
+  labs(x = "Log Fish length (cm)",  
+       y = "Log Fish abundance") +
+  theme_bw()
+
+```
+
+```{r fig.width=9, height = 3}
+
+df_fit %>% 
+  filter(species_name %in% sample(selected_spp, size = 50)) |> 
+  ggplot() + 
+  aes(x = size_class, 
+      y = n) + 
+  geom_point() + 
+  geom_line() +
+  facet_wrap( ~ species_name, ncol = 5) +
+  scale_y_log10() + 
+  labs(x = "Fish length (cm)",
+       y = "Log Fish abundance") +
+  theme_bw()
+
+```
+
+```{r}
+
+df_abundance %>% 
+  ggplot() +
+  aes(x = Mean_L, y = Total_N) +
+  geom_point(color = "red") + 
+  labs(x = "Observed mean fish length (cm)", 
+       y = "Abundance") +
+  scale_y_log10() +
+  scale_x_log10() + 
+  theme_bw() +
+  stat_smooth(method = "loess", 
+              formula = "y ~ x")
+
+```
+
+## *Bayesian Model Fit*
+
+### Model set up
+
+```{r}
+
+stan_dat <- list(
+  I = nrow(df_fit), # number of observations
+  S = max(df_fit$species_indx), # number of species
+  B = max(df_fit$size_indx), # number of bins
+  l = cutoff[1:max(df_fit$size_indx)], # length cut-offs
+  s = df_fit$species_indx, # species
+  b = df_fit$size_indx, # length bin
+  n = df_fit$n) # individual counts    
+
+glimpse(stan_dat) # show data fed to rstan
+
+
+```
+
+### Running the model
+
+```{r}
+
+ if(!file.exists("output/stan/lnorm_fit.rds")){ 
+
+   # fit the log-normal pdf model! 
+
+ stan(file = 'data/stan_models/LogNormalFit_FJH.stan',  
+
+                data = stan_dat, 
+
+                iter = 600,  
+
+                warmup = 200,  
+
+                chains = 3,  
+
+                refresh = 200) |>  
+
+ saveRDS("output/stan/lnorm_fit.rds") 
+
+ } 
+
+fit_ln <- readRDS("output/stan/lnorm_fit.rds") 
+
+```
+
+\### Checking the model fit
+
+```{r}
+
+ # check out some predicted model parameters and log-likelihood 
+
+ model_par <- c("lp__",  
+
+                "ln_sigma[1]", 
+
+                "ln_sigma[2]", 
+
+                "ln_sigma[3]", 
+
+                "ln_mu[1]",  
+
+                "ln_mu[2]",  
+
+                "ln_mu[3]") 
+
+ # check for chain convergence 
+
+ rstan::traceplot(object = fit_ln,  
+
+                  pars = model_par,  
+
+                  inc_warmup = TRUE,  
+
+                  ncol = 5) 
+
+```
+
+\### Summarising the model coefficients
+
+```{r}
+
+ # calculate the predicted mean length of each species and 90% credible interval 
+
+ l_par <- rstan::extract(fit_ln, pars = c("ln_sigma", "ln_mu")) 
+
+ par_table <-  
+
+   tibble( 
+
+     # CHECK THIS: IS THIS THE RIGHT ORDER OF THE SPECIES NAMES??? 
+
+     species_name = spp_list$species_name, 
+
+     ln_sigma = l_par$ln_sigma[1,], 
+
+        ln_mu = l_par$ln_mu[1,])  
+
+ par_table_long <-  
+
+   par_table |>  
+
+   pivot_longer(cols = c(ln_sigma, ln_mu), 
+
+                names_to = "par") 
+ 
+ 
+ par_table |> 
+   ggplot(aes(x = ln_sigma)) +
+   geom_density()
+ 
+  par_table |> 
+   ggplot(aes(x = ln_mu)) +
+   geom_density()
+
+ par_table_long |>  
+
+   ggplot() + 
+
+   aes(x = value,  
+
+       col = par) +  
+
+   geom_density() 
+
+ df_abundance |>  
+
+   left_join(par_table) |>  
+
+   ggplot() + 
+
+   aes( 
+
+     x = Mean_L,  
+
+     y = ln_mu 
+
+   ) + 
+
+   geom_point() + 
+
+   geom_line(aes(y = log(Mean_L))) 
+
+ df_abundance |>  
+
+   left_join(par_table) |>  
+
+   ggplot() + 
+
+   aes( 
+
+     x = Mean_L,  
+
+     y = ln_sigma 
+
+   ) + 
+
+   geom_point() 
+
+ par_table |>  
+
+   ggplot() + 
+
+   aes(x = ln_mu,  
+
+       y = ln_sigma |> exp()) + 
+
+   geom_point() 
+
+```
+
+\### Comparing observed and modelled scaled size
+
+```{r}
+
+ func1 <- function(df) { 
+
+   tibble( 
+
+     x = seq(1, 100, by = 0.2),  
+
+     y =  
+
+   dlnorm(x = x,  
+
+          meanlog = df$ln_mu,  
+
+          sdlog = exp(df$ln_sigma)) 
+
+   ) 
+
+ } 
+
+ par_table |>  
+
+   group_nest(species_name) |>  
+
+   mutate(new = map(.x = data,  
+
+                    .f = func1)) |>  
+
+   unnest(cols = c(new, data)) |>  
+
+   left_join(df_abundance,  
+
+             by = join_by(species_name)) |>  
+
+   mutate(x_scaled = x/Mean_L) |>  
+
+   ggplot() + 
+
+   aes(x = x_scaled |> log(),  
+
+       y = y |> log(),  
+
+       col = species_name) + 
+
+   geom_path() + 
+
+   theme(legend.position = "none") 
+
+ df_fit |>  
+
+   select(species_name, n, size_class, Mean_L, Total_N) |>  
+
+   mutate(scaled_n = n/Total_N,  
+
+          scaled_l = size_class/Mean_L) |>  
+
+   ggplot() +  
+
+   aes(  
+
+     x = log(scaled_l), 
+
+     y = log(scaled_n)) + 
+
+   geom_path(aes(col = species_name),  
+
+             alpha = 0.2) + 
+
+   theme(legend.position = "none") + 
+
+   geom_smooth() 
+
+```
+
+```{r}
+
+ # calculate the predicted mean length of each species and 90% credible interval 
+
+ l_par <- rstan::extract(fit_ln,  
+
+                         pars = c("ln_sigma", "ln_mu")) 
+
+ df_pred_spp <- tibble(Spp = 1:S) # create a data frame 
+
+ # add quantiles of predicted mean fish lengths 
+
+ df_pred_spp$medn = exp(apply(X = l_par$ln_mu,  
+
+                              MARGIN = 2,  
+
+                              FUN = quantile,  
+
+                              probs = 0.5)) 
+
+ df_pred_spp$lwr90 = exp(apply(X = l_par$ln_mu,  
+
+                               MARGIN = 2,  
+
+                               FUN = quantile,  
+
+                               probs = 0.05)) 
+
+ df_pred_spp$upp90 = exp(apply(X = l_par$ln_mu,  
+
+                               MARGIN = 2,  
+
+                               FUN = quantile,  
+
+                               probs = 0.95)) 
+
+ ggplot(df_pred_spp) + 
+
+   geom_errorbar(aes(x = Spp, ymin = lwr90, ymax = upp90), width = 0.2) + 
+
+   geom_point(aes(x =Spp, y = medn)) + 
+
+   labs( 
+
+     x = "Species id",  
+
+     y = "Median length (cm)",  
+
+     subtitle = "Bars = 90%CI for median") + 
+
+   theme_bw() 
+
+```
+
+```{r}
+
+ # for each species and bin size predict probability of fish being in the bin 
+
+ df_predict$p_ln = 0.0 # create a column 
+
+ for (i in 1:nrow(df_predict)) { 
+
+   if (df_predict$size_indx[i] == 1)    { # special case for smallest bin 
+
+     p_all <- plnorm(cutoff[1], meanlog = l_par$ln_mu[ ,df_predict$spp_id[i]],  
+
+                     sdlog = exp(l_par$ln_sigma)) 
+
+   } else { # larger bins 
+
+     p_all <- plnorm(cutoff[df_predict$size_indx[i]], meanlog = l_par$ln_mu[ 
+
+       ,df_predict$spp_id[i]], sdlog = exp(l_par$ln_sigma)) - 
+
+       plnorm(cutoff[df_predict$size_indx[i]-1], meanlog = l_par$ln_mu[ 
+
+         ,df_predict$spp_id[i]], sdlog = exp(l_par$ln_sigma)) 
+
+   } 
+
+   df_predict$p_ln[i] <- mean(p_all) # store the mean predicted probability 
+
+ } 
+
+```
+
+```{r fig.width=9, fig.height=7}
+
+ ggplot() + 
+
+   geom_point(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_ln), color = "purple", size = 1) + 
+
+   geom_line(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_ln), color = "purple") + 
+
+   geom_point(data = filter(df_fit, spp_id %in% spp_plotted), aes(x = size_class, y = f_obs), color= "black", size = 2) + 
+
+   facet_wrap( ~ spp_id, ncol = 5) + 
+
+   labs(x = "Size class (cm)", y = "Probability") + 
+
+   theme_bw() 
+
+```
+
+```{r}
+
+
+
+  fit_n <-  
+
+
+
+    stan( 
+
+
+
+      file = "data/stan_models/NormalFit.stan",  
+
+
+
+      data = stan_dat, 
+
+
+
+      iter = 1000,  
+
+
+
+      warmup = 500,  
+
+
+
+      chains = 3,  
+
+
+
+      refresh = 300,  
+
+
+
+      seed = 1,  
+
+
+
+    ) 
+
+
+
+```
+
+Model does not want to run, the chains do not converge and we get a large R-hat value
+
+```{r}
+
+
+
+ # check out some predicted model parameters and log-likelihood 
+
+
+
+ model_par <- c("lp__", "ln_cv", "ln_mu[1]", "ln_mu[10]", "ln_mu[20]") 
+
+
+
+ # check for chain convergence 
+
+
+
+ rstan::traceplot(object = fit_n, pars = model_par, inc_warmup = TRUE, ncol = 5) 
+
+
+
+```
+
+\### *Model predictions*
+
+```{r}
+
+
+
+ # calculate the predicted mean length of each species and 90% credible interval 
+
+
+
+ l_par <- rstan::extract(fit_n, pars = c("ln_cv", "ln_mu")) 
+
+
+
+ df_pred_spp <- tibble(Spp = 1:S) # create a data frame 
+
+
+
+ # add quantiles of predicted mean fish lengths 
+
+
+
+ df_pred_spp$medn = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  
+
+
+
+                              probs = 0.5)) 
+
+
+
+ df_pred_spp$lwr90 = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  
+
+
+
+                               probs = 0.05)) 
+
+
+
+ df_pred_spp$upp90 = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  
+
+
+
+                               probs = 0.95)) 
+
+
+
+ ggplot(df_pred_spp) + 
+
+
+
+   geom_errorbar(aes(x = Spp, ymin = lwr90, ymax = upp90), width = 0.2) + 
+
+
+
+   geom_point(aes(x =Spp, y = medn)) + 
+
+
+
+   labs(x = "Species id", y = "Mean length (cm)", subtitle = "Bars = 90%CI for mean") + 
+
+
+
+   theme_bw() 
+
+
+
+```
+
+```{r}
+
+
+
+ # for each species and bin size predict probability of fish being in the bin 
+
+
+
+ df_predict <- expand_grid( 
+
+
+
+   spp_id = 1:S, size_indx = 1:B) 
+
+
+
+ df_predict$p_n = 0.0 # create a column 
+
+
+
+ for (i in 1:nrow(df_predict)) { 
+
+
+
+   if (df_predict$size_indx[i] == 1)    { # special case for smallest bin 
+
+
+
+     p_all <- pnorm(cutoff[1], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  
+
+
+
+                    sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) 
+
+
+
+   } else { # larger bins 
+
+
+
+     p_all <- pnorm(cutoff[df_predict$size_indx[i]], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  
+
+
+
+                    sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) - 
+
+
+
+       pnorm(cutoff[df_predict$size_indx[i]-1], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  
+
+
+
+             sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) 
+
+
+
+   } 
+
+
+
+   df_predict$p_n[i] <- mean(p_all) # store the mean predicted probability 
+
+
+
+ } 
+
+
+
+ df_predict <- left_join(df_predict, df_cutoff, by = "size_indx") # add bin sizes 
+
+
+
+```
+
+```{r fig.width=9, fig.height=7}
+
+
+
+ ggplot() + 
+
+
+
+   geom_point(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_n), color = "red", size = 1) + 
+
+
+
+   geom_line(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_n), color = "red") + 
+
+
+
+   geom_point(data = filter(df_fit, spp_id %in% spp_plotted), aes(x = size_class, y = f_obs), color= "black", size = 2) + 
+
+
+
+   facet_wrap( ~ spp_id, ncol = 5) + 
+
+
+
+   labs(x = "Size class (cm)", y = "Probability") + 
+
+
+
+   theme_bw() 
+
+
+
+```
+
+```{r fig.width=9, fig.height=7}
+
+ ggplot() + 
+
+   geom_point(data = filter(df_predict, spp_id %in% spp_plotted, p_n > 0.001),  
+
+              aes(x = size_class, y = p_n), color = "red", size = 1) + 
+
+   geom_line(data = filter(df_predict, spp_id %in% spp_plotted, p_n > 0.001),  
+
+             aes(x = size_class, y = p_n), color = "red") + 
+
+   geom_point(data = filter(df_predict, spp_id %in% spp_plotted, p_ln > 0.001),  
+
+              aes(x = size_class, y = p_ln), color = "purple", size = 1) + 
+
+   geom_line(data = filter(df_predict, spp_id %in% spp_plotted, p_ln > 0.001),  
+
+             aes(x = size_class, y = p_ln), color = "purple") + 
+
+   geom_point(data = filter(df_fit, spp_id %in% spp_plotted),  
+
+              aes(x = size_class, y = f_obs), color= "black", size = 2) + 
+
+   scale_x_log10() + scale_y_log10() + 
+
+   labs(caption = "Black = observed fractions, red/purple is predicted fractions if normally/log-normally distributed and all species have the same coeff. of variation.") + 
+
+   facet_wrap( ~ spp_id, ncol = 5) + 
+
+   labs(x = "Size class (cm)", y = "Probability") + 
+
+   theme_bw() 
+
+```
+
+```{r}
+
+ ll_ln <- rstan::extract(fit_ln, pars = c("lp__")) 
+
+ mean(ll_ln$lp__) # log-likelihood of log-normal assumption 
+
+```
+
+```{r}
+
+ ll_n <- rstan::extract(fit_n, pars = c("lp__")) 
+
+ mean(ll_n$lp__) # log-likelihood of normal assumption 
+
+```

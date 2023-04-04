@@ -5,3 +5,7 @@
 
 /.quarto/
 data/raw/ep_m1_ALL.csv
+*.csv
+*.png
+output/*
+*.rds

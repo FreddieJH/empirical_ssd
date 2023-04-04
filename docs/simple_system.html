@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.3.34">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Freddie Heather, Shane Richards, &amp; Asta Audzijonyte">
+<meta name="dcterms.date" content="2023-03-07">
+
+<title>Empirical species size distribution - Starting simple</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1.6em;
+  vertical-align: middle;
+}
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { color: #008000; } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { color: #008000; font-weight: bold; } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+div.csl-bib-body { }
+div.csl-entry {
+  clear: both;
+}
+.hanging div.csl-entry {
+  margin-left:2em;
+  text-indent:-2em;
+}
+div.csl-left-margin {
+  min-width:2em;
+  float:left;
+}
+div.csl-right-inline {
+  margin-left:2em;
+  padding-left:1em;
+}
+div.csl-indent {
+  margin-left: 2em;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap.min.css" rel="stylesheet" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "sidebar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "start",
+  "type": "textbox",
+  "limit": 20,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-sidebar floating">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+  <nav class="quarto-secondary-nav" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+    <div class="container-fluid d-flex justify-content-between">
+      <h1 class="quarto-secondary-nav-title">Starting simple</h1>
+      <button type="button" class="quarto-btn-toggle btn" aria-label="Show secondary navigation">
+        <i class="bi bi-chevron-right"></i>
+      </button>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse sidebar-navigation floating overflow-auto">
+    <div class="pt-lg-2 mt-2 text-left sidebar-header">
+    <div class="sidebar-title mb-0 py-0">
+      <a href="./">Empirical species size distribution</a> 
+    </div>
+      </div>
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./index.html" class="sidebar-item-text sidebar-link">Background</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./simple_system.html" class="sidebar-item-text sidebar-link active">Simple system</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./shane_jervisbay.html" class="sidebar-item-text sidebar-link">Jervis Bay (Shane)</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gridcell.html" class="sidebar-item-text sidebar-link">Gridcell (single species)</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./universal.html" class="sidebar-item-text sidebar-link">Universal body size</a>
+  </div>
+</li>
+    </ul>
+    </div>
+</nav>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#set-up" id="toc-set-up" class="nav-link active" data-scroll-target="#set-up">Set-up</a>
+  <ul class="collapse">
+  <li><a href="#required-packages" id="toc-required-packages" class="nav-link" data-scroll-target="#required-packages">Required packages</a></li>
+  <li><a href="#non-target-species" id="toc-non-target-species" class="nav-link" data-scroll-target="#non-target-species">Non-target species</a></li>
+  <li><a href="#relatively-abundant-species" id="toc-relatively-abundant-species" class="nav-link" data-scroll-target="#relatively-abundant-species">Relatively abundant species</a></li>
+  <li><a href="#range-of-body-sizes" id="toc-range-of-body-sizes" class="nav-link" data-scroll-target="#range-of-body-sizes">Range of body sizes</a></li>
+  </ul></li>
+  <li><a href="#data-wrangling" id="toc-data-wrangling" class="nav-link" data-scroll-target="#data-wrangling">Data wrangling</a></li>
+  <li><a href="#data-plots" id="toc-data-plots" class="nav-link" data-scroll-target="#data-plots"><em>Data plots</em></a></li>
+  <li><a href="#bayesian-model-fit" id="toc-bayesian-model-fit" class="nav-link" data-scroll-target="#bayesian-model-fit"><em>Bayesian Model Fit</em></a>
+  <ul class="collapse">
+  <li><a href="#model-set-up" id="toc-model-set-up" class="nav-link" data-scroll-target="#model-set-up">Model set up</a></li>
+  <li><a href="#running-the-model" id="toc-running-the-model" class="nav-link" data-scroll-target="#running-the-model">Running the model</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title d-none d-lg-block">Starting simple</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Authors</div>
+    <div class="quarto-title-meta-contents">
+             <p>Freddie Heather, Shane Richards, &amp; Asta Audzijonyte </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Last modified</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">March 7, 2023</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+</header>
+
+<section id="set-up" class="level2">
+<h2 class="anchored" data-anchor-id="set-up">Set-up</h2>
+<section id="required-packages" class="level3">
+<h3 class="anchored" data-anchor-id="required-packages">Required packages</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb1"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(arrow)</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(rstan)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>We want to chose a subsection of fish species from the RLS dataset. These species should ideally be non-target species for fisheries, should cover multiple size classes, and should be relatively abundant.</p>
+</section>
+<section id="non-target-species" class="level3">
+<h3 class="anchored" data-anchor-id="non-target-species">Non-target species</h3>
+<p>Species-level fishing pressure data are taken from supplementary table 1 of <span class="citation" data-cites="audzijonyte2020">Audzijonyte et al. (<a href="#ref-audzijonyte2020" role="doc-biblioref">2020</a>)</span>.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Species that we will consider (minimal fishing pressure)</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>nontarget_spp <span class="ot">&lt;-</span> </span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_csv</span>(<span class="st">"data/raw/audzijonyte_nee_supplementary_table_1_fishing.csv"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(fisheries_target <span class="sc">==</span> <span class="st">"rarely"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(species)</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(nontarget_spp)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>[1] "Abudefduf bengalensis"         "Abudefduf sexfasciatus"       
+[3] "Abudefduf vaigiensis"          "Abudefduf whitleyi"           
+[5] "Acanthaluteres spilomelanurus" "Acanthochromis polyacanthus"  </code></pre>
+</div>
+</div>
+</section>
+<section id="relatively-abundant-species" class="level3">
+<h3 class="anchored" data-anchor-id="relatively-abundant-species">Relatively abundant species</h3>
+<p>For this we need abundance data. These data are from all across Australia.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Each row is a single individual observation</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a>obs_data <span class="ot">&lt;-</span> <span class="fu">read_parquet</span>(<span class="st">"data/raw/obs_data_m1_aus.parquet"</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(obs_data)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code># A tibble: 6 x 3
+  survey_id species_name          size_class
+      &lt;dbl&gt; &lt;chr&gt;                      &lt;dbl&gt;
+1   2000854 Achoerodus viridis          50  
+2   2000854 Achoerodus viridis          62.5
+3   2000854 Achoerodus viridis         112. 
+4   2000854 Aplodactylus lophodon       15  
+5   2000854 Aplodactylus lophodon       20  
+6   2000854 Atypichthys strigatus        2.5</code></pre>
+</div>
+</div>
+<p>We are selecting species that are in the 90% percentile of abundance.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>spp_byabundance <span class="ot">&lt;-</span> </span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_parquet</span>(<span class="st">"data/raw/obs_data_m1_aus.parquet"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(species_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(n)) </span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># The 90% percentile of abundance</span></span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>abundance_cutoff <span class="ot">&lt;-</span> </span>
+<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>  spp_byabundance <span class="sc">%&gt;%</span> </span>
+<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(n) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">quantile</span>(<span class="at">probs =</span> <span class="fl">0.9</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">as.numeric</span>()</span>
+<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a>abundant_spp <span class="ot">&lt;-</span> </span>
+<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a>  spp_byabundance <span class="sc">%&gt;%</span> </span>
+<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(n <span class="sc">&gt;=</span> abundance_cutoff) <span class="sc">%&gt;%</span> </span>
+<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(species_name)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+<section id="range-of-body-sizes" class="level3">
+<h3 class="anchored" data-anchor-id="range-of-body-sizes">Range of body sizes</h3>
+<p>To satisfy this criteria, we are selecting species from the full range of mean body sizes. Species are selected from equally spaced from the smallest to the largest mean body size.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># How many species we want to model</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>n_spp <span class="ot">&lt;-</span> <span class="dv">500</span></span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>suitable_spp <span class="ot">&lt;-</span> </span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>  obs_data <span class="sc">%&gt;%</span> </span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(species_name) <span class="sc">|&gt;</span> </span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">mean_size =</span> <span class="fu">mean</span>(size_class), </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>            <span class="at">.groups =</span> <span class="st">"drop"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(mean_size) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> nontarget_spp) <span class="sc">%&gt;%</span> </span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> abundant_spp)</span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Of the suitable species we want an equal spacing of body size</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>equal_spaced_bodysize <span class="ot">&lt;-</span> </span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">seq</span>(<span class="at">from =</span> <span class="dv">1</span>, <span class="at">to =</span> <span class="fu">nrow</span>(suitable_spp), <span class="at">length.out =</span> n_spp) <span class="sc">%&gt;%</span> <span class="fu">round</span>()</span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a><span class="co"># 20 species across the range of sizes</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>selected_spp <span class="ot">&lt;-</span> </span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>  suitable_spp[equal_spaced_bodysize, ] <span class="sc">%&gt;%</span> </span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(species_name)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb8"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># The most abundant species (number specified above)</span></span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co"># only selecting non-target species</span></span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>selected_spp <span class="ot">&lt;-</span> </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_parquet</span>(<span class="st">"data/raw/obs_data_m1_aus.parquet"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">count</span>(species_name) <span class="sc">%&gt;%</span> </span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">arrange</span>(<span class="fu">desc</span>(n)) <span class="sc">%&gt;%</span> </span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> nontarget_spp) <span class="sc">%&gt;%</span> </span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">head</span>(n_spp) <span class="sc">%&gt;%</span> </span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(species_name)</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a><span class="co"># The selected species</span></span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>selected_spp</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>  [1] "Trachinops taeniatus"              "Trachinops caudimaculatus"        
+  [3] "Atypichthys strigatus"             "Chromis hypsilepis"               
+  [5] "Trachinops noarlungae"             "Pomacentrus moluccensis"          
+  [7] "Pomacentrus coelestis"             "Chromis nitida"                   
+  [9] "Schuettea scalaripinnis"           "Chromis atripectoralis"           
+ [11] "Caesioperca rasor"                 "Acanthochromis polyacanthus"      
+ [13] "Pomacentrus lepidogenys"           "Pempheris multiradiata"           
+ [15] "Chlorurus sordidus"                "Chromis margaritifer"             
+ [17] "Pempheris compressa"               "Caesio cuning"                    
+ [19] "Thalassoma lunare"                 "Ctenochaetus striatus"            
+ [21] "Parapriacanthus elongatus"         "Pempheris klunzingeri"            
+ [23] "Chromis viridis"                   "Dascyllus reticulatus"            
+ [25] "Caesioperca lepidoptera"           "Chromis ternatensis"              
+ [27] "Thalassoma amblycephalum"          "Pomacentrus wardi"                
+ [29] "Pomacentrus milleri"               "Pempheris affinis"                
+ [31] "Pomacentrus vaiuli"                "Pterocaesio digramma"             
+ [33] "Amblyglyphidodon curacao"          "Pseudolabrus luculentus"          
+ [35] "Acanthurus nigrofuscus"            "Parma microlepis"                 
+ [37] "Thalassoma lutescens"              "Dascyllus aruanus"                
+ [39] "Plectroglyphidodon lacrymatus"     "Dascyllus trimaculatus"           
+ [41] "Pomacentrus brachialis"            "Chromis weberi"                   
+ [43] "Pomacentrus philippinus"           "Cirrhilabrus punctatus"           
+ [45] "Chromis westaustralis"             "Pomacentrus amboinensis"          
+ [47] "Chromis atripes"                   "Chromis amboinensis"              
+ [49] "Parma unifasciata"                 "Stegastes gascoynei"              
+ [51] "Chromis chrysura"                  "Pseudanthias tuka"                
+ [53] "Pomacentrus bankanensis"           "Abudefduf sexfasciatus"           
+ [55] "Stegastes fasciolatus"             "Caesioscorpis theagenes"          
+ [57] "Cheilodipterus quinquelineatus"    "Parma mccullochi"                 
+ [59] "Pomacentrus adelus"                "Halichoeres melanurus"            
+ [61] "Halichoeres nebulosus"             "Labroides dimidiatus"             
+ [63] "Siphonognathus beddomei"           "Neoodax balteatus"                
+ [65] "Chromis klunzingeri"               "Zebrasoma scopas"                 
+ [67] "Stegastes nigricans"               "Thalassoma hardwicke"             
+ [69] "Schuettea woodwardi"               "Plotosus lineatus"                
+ [71] "Austrolabrus maculatus"            "Caesio teres"                     
+ [73] "Amblyglyphidodon leucogaster"      "Scarus rivulatus"                 
+ [75] "Apogon limenus"                    "Neoglyphidodon nigroris"          
+ [77] "Halichoeres brownfieldi"           "Aplodactylus lophodon"            
+ [79] "Caesio caerulaurea"                "Acanthurus triostegus"            
+ [81] "Scarus schlegeli"                  "Ctenochaetus binotatus"           
+ [83] "Pseudanthias squamipinnis"         "Acanthurus grammoptilus"          
+ [85] "Pterocaesio tile"                  "Kyphosus sectatrix"               
+ [87] "Hypoplectrodes maccullochi"        "Leptojulis cyanopleura"           
+ [89] "Parma victoriae"                   "Stegastes obreptus"               
+ [91] "Scolopsis bilineata"               "Torquigener pleurogramma"         
+ [93] "Gomphosus varius"                  "Scarus ghobban"                   
+ [95] "Coris batuensis"                   "Parma polylepis"                  
+ [97] "Stethojulis bandanensis"           "Pomacentrus nagasakiensis"        
+ [99] "Paracaesio xanthura"               "Neatypus obliquus"                
+[101] "Pterocaesio marri"                 "Pterocaesio trilineata"           
+[103] "Halichoeres hortulanus"            "Stethojulis interrupta"           
+[105] "Abudefduf bengalensis"             "Chaetodon aureofasciatus"         
+[107] "Abudefduf vaigiensis"              "Siganus fuscescens"               
+[109] "Apogon doederleini"                "Ptereleotris evides"              
+[111] "Anampses neoguinaicus"             "Halichoeres trimaculatus"         
+[113] "Chromis xanthura"                  "Microcanthus strigatus"           
+[115] "Labrichthys unilineatus"           "Pseudolabrus biserialis"          
+[117] "Abudefduf whitleyi"                "Pomacentrus australis"            
+[119] "Plagiotremus tapeinosoma"          "Lutjanus gibbus"                  
+[121] "Chaetodon tricinctus"              "Monodactylus argenteus"           
+[123] "Tilodon sexfasciatus"              "Acanthurus nigricans"             
+[125] "Amphiprion akindynos"              "Anampses geographicus"            
+[127] "Halichoeres nigrescens"            "Cirrhilabrus exquisitus"          
+[129] "Kyphosus bigibbus"                 "Gerres subfasciatus"              
+[131] "Stethojulis strigiventer"          "Pomacentrus grammorhynchus"       
+[133] "Thalassoma quinquevittatum"        "Gnathodentex aureolineatus"       
+[135] "Mecaenichthys immaculatus"         "Chaetodon plebeius"               
+[137] "Thalassoma nigrofasciatum"         "Parma occidentalis"               
+[139] "Mulloidichthys vanicolensis"       "Neoglyphidodon melas"             
+[141] "Pomacentrus chrysurus"             "Plectroglyphidodon johnstonianus" 
+[143] "Dotalabrus aurantiacus"            "Acanthurus lineatus"              
+[145] "Chaetodon lunulatus"               "Anampses elegans"                 
+[147] "Plectroglyphidodon dickii"         "Scarus chameleon"                 
+[149] "Halichoeres biocellatus"           "Pseudocheilinus hexataenia"       
+[151] "Eupetrichthys angustipes"          "Chelmonops curiosus"              
+[153] "Dischistodus prosopotaenia"        "Scarus niger"                     
+[155] "Stegastes apicalis"                "Scarus frenatus"                  
+[157] "Halichoeres melanochir"            "Centropyge bispinosa"             
+[159] "Zanclus cornutus"                  "Chaetodon trifascialis"           
+[161] "Ctenochaetus cyanocheilus"         "Coris picta"                      
+[163] "Chaetodon pelewensis"              "Chironemus marmoratus"            
+[165] "Dischistodus melanotus"            "Hemiglyphidodon plagiometopon"    
+[167] "Acanthurus nigricauda"             "Acanthurus blochii"               
+[169] "Monotaxis heterodon"               "Chaetodon citrinellus"            
+[171] "Hipposcarus longiceps"             "Amblygobius phalaena"             
+[173] "Pictilabrus viridis"               "Centropyge vrolikii"              
+[175] "Scarus prasiognathos"              "Hemitaurichthys polylepis"        
+[177] "Ostorhinchus compressus"           "Halichoeres marginatus"           
+[179] "Monotaxis grandoculis"             "Mulloidichthys flavolineatus"     
+[181] "Naso unicornis"                    "Heteroscarus acroptilus"          
+[183] "Pempheris analis"                  "Ptereleotris microlepis"          
+[185] "Naso lituratus"                    "Acanthurus olivaceus"             
+[187] "Cheilinus chlorourus"              "Siganus virgatus"                 
+[189] "Acanthurus dussumieri"             "Oxymonacanthus longirostris"      
+[191] "Siganus doliatus"                  "Chelmon marginalis"               
+[193] "Diodon nicthemerus"                "Halichoeres miniatus"             
+[195] "Chaetodon auriga"                  "Chaetodon flavirostris"           
+[197] "Scarus altipinnis"                 "Scarus flavipectoralis"           
+[199] "Chaetodon kleinii"                 "Acanthurus nigroris"              
+[201] "Sufflamen chrysopterum"            "Paracirrhites arcatus"            
+[203] "Chromis xanthochira"               "Naso tonganus"                    
+[205] "Naso brevirostris"                 "Parapercis haackei"               
+[207] "Dischistodus pseudochrysopoecilus" "Apogon victoriae"                 
+[209] "Chaetodon rainfordi"               "Ostorhinchus aureus"              
+[211] "Centropyge bicolor"                "Forcipiger flavissimus"           
+[213] "Coris aygula"                      "Myripristis kuntee"               
+[215] "Cirripectes filamentosus"          "Chaetodon guentheri"              
+[217] "Centropyge tibicen"                "Pempheris oualensis"              
+[219] "Dischistodus perspicillatus"       "Pseudochromis fuscus"             
+[221] "Chaetodon melannotus"              "Cheilinus fasciatus"              
+[223] "Brachaluteres jacksonianus"        "Paracirrhites forsteri"           
+[225] "Acanthaluteres spilomelanurus"     "Canthigaster valentini"           
+[227] "Acanthurus pyroferus"              "Thalassoma jansenii"              
+[229] "Meiacanthus atrodorsalis"          "Epibulus insidiator"              
+[231] "Cheilinus trilobatus"              "Labroides bicolor"                
+[233] "Plagiotremus rhinorhynchos"        "Myripristis violacea"             
+[235] "Pseudanthias pascalus"             "Macropharyngodon meleagris"       
+[237] "Pomacanthus sexstriatus"           "Myripristis vittata"              
+[239] "Parequula melbournensis"           "Oxycheilinus unifasciatus"        
+[241] "Neoniphon sammara"                 "Chaetodon mertensii"              
+[243] "Halichoeres margaritaceus"         "Chaetodon baronessa"              
+[245] "Aracana aurita"                    "Dotalabrus alleni"                
+[247] "Serranocirrhitus latus"            "Kyphosus cinerascens"             
+[249] "Acanthurus albipectoralis"         "Labropsis australis"              
+[251] "Valenciennea muralis"             </code></pre>
+</div>
+<div class="sourceCode cell-code" id="cb10"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">write_rds</span>(selected_spp, <span class="st">"output/data/selected_spp.rds"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+</section>
+</section>
+<section id="data-wrangling" class="level2">
+<h2 class="anchored" data-anchor-id="data-wrangling">Data wrangling</h2>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb11"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>spp_list <span class="ot">&lt;-</span> </span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">tibble</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">species_name =</span> selected_spp, </span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">species_indx =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(selected_spp)</span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>obs_data_filter <span class="ot">&lt;-</span> </span>
+<span id="cb11-8"><a href="#cb11-8" aria-hidden="true" tabindex="-1"></a>  obs_data <span class="sc">%&gt;%</span> </span>
+<span id="cb11-9"><a href="#cb11-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> selected_spp)</span>
+<span id="cb11-10"><a href="#cb11-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-11"><a href="#cb11-11" aria-hidden="true" tabindex="-1"></a><span class="co"># create a vector of bin length boundaries</span></span>
+<span id="cb11-12"><a href="#cb11-12" aria-hidden="true" tabindex="-1"></a>cutoff <span class="ot">&lt;-</span> <span class="fu">c</span>(</span>
+<span id="cb11-13"><a href="#cb11-13" aria-hidden="true" tabindex="-1"></a>  <span class="fl">2.5</span>, <span class="dv">5</span>, <span class="fl">7.5</span>, <span class="dv">10</span>, <span class="fl">12.5</span>, <span class="dv">15</span>, <span class="dv">20</span>, <span class="dv">25</span>, <span class="dv">30</span>, <span class="dv">35</span>, <span class="dv">40</span>, <span class="dv">50</span>, </span>
+<span id="cb11-14"><a href="#cb11-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">seq</span>(<span class="at">from =</span> <span class="fl">62.5</span>, <span class="at">to =</span> <span class="dv">200</span>, <span class="at">by =</span> <span class="fl">12.5</span>), </span>
+<span id="cb11-15"><a href="#cb11-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">seq</span>(<span class="at">from =</span> <span class="dv">250</span>, <span class="at">to =</span> <span class="dv">500</span>, <span class="at">by =</span> <span class="dv">50</span>))</span>
+<span id="cb11-16"><a href="#cb11-16" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-17"><a href="#cb11-17" aria-hidden="true" tabindex="-1"></a>rls_bins <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">0</span>, cutoff)</span>
+<span id="cb11-18"><a href="#cb11-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-19"><a href="#cb11-19" aria-hidden="true" tabindex="-1"></a><span class="co"># create a data frame that links fish lengths with bin indices</span></span>
+<span id="cb11-20"><a href="#cb11-20" aria-hidden="true" tabindex="-1"></a>df_cutoff <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb11-21"><a href="#cb11-21" aria-hidden="true" tabindex="-1"></a>  <span class="at">size_class =</span> cutoff,</span>
+<span id="cb11-22"><a href="#cb11-22" aria-hidden="true" tabindex="-1"></a>  <span class="at">size_indx =</span> <span class="dv">1</span><span class="sc">:</span><span class="fu">length</span>(cutoff)</span>
+<span id="cb11-23"><a href="#cb11-23" aria-hidden="true" tabindex="-1"></a>)</span>
+<span id="cb11-24"><a href="#cb11-24" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-25"><a href="#cb11-25" aria-hidden="true" tabindex="-1"></a><span class="co"># add bin indices to the dataset</span></span>
+<span id="cb11-26"><a href="#cb11-26" aria-hidden="true" tabindex="-1"></a>df_single <span class="ot">&lt;-</span> </span>
+<span id="cb11-27"><a href="#cb11-27" aria-hidden="true" tabindex="-1"></a>  obs_data_filter <span class="sc">%&gt;%</span> </span>
+<span id="cb11-28"><a href="#cb11-28" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_cutoff, </span>
+<span id="cb11-29"><a href="#cb11-29" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">"size_class"</span>)</span>
+<span id="cb11-30"><a href="#cb11-30" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-31"><a href="#cb11-31" aria-hidden="true" tabindex="-1"></a><span class="co"># calculate species counts and mean species lengths</span></span>
+<span id="cb11-32"><a href="#cb11-32" aria-hidden="true" tabindex="-1"></a>df_abundance <span class="ot">&lt;-</span> </span>
+<span id="cb11-33"><a href="#cb11-33" aria-hidden="true" tabindex="-1"></a>  df_single <span class="sc">%&gt;%</span></span>
+<span id="cb11-34"><a href="#cb11-34" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(spp_list, </span>
+<span id="cb11-35"><a href="#cb11-35" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">"species_name"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb11-36"><a href="#cb11-36" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">Total_N =</span> <span class="fu">n</span>(), </span>
+<span id="cb11-37"><a href="#cb11-37" aria-hidden="true" tabindex="-1"></a>            <span class="at">Mean_L =</span> <span class="fu">mean</span>(size_class), </span>
+<span id="cb11-38"><a href="#cb11-38" aria-hidden="true" tabindex="-1"></a>            <span class="at">.by =</span> <span class="st">"species_indx"</span>) <span class="sc">%&gt;%</span></span>
+<span id="cb11-39"><a href="#cb11-39" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(spp_list, <span class="at">by =</span> <span class="st">"species_indx"</span>)</span>
+<span id="cb11-40"><a href="#cb11-40" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-41"><a href="#cb11-41" aria-hidden="true" tabindex="-1"></a><span class="co"># group counts of same species of same size </span></span>
+<span id="cb11-42"><a href="#cb11-42" aria-hidden="true" tabindex="-1"></a>df_fit <span class="ot">&lt;-</span> </span>
+<span id="cb11-43"><a href="#cb11-43" aria-hidden="true" tabindex="-1"></a>  df_single <span class="sc">%&gt;%</span></span>
+<span id="cb11-44"><a href="#cb11-44" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(spp_list, </span>
+<span id="cb11-45"><a href="#cb11-45" aria-hidden="true" tabindex="-1"></a>            <span class="at">by =</span> <span class="st">"species_name"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb11-46"><a href="#cb11-46" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>( <span class="at">n =</span> <span class="fu">n</span>(), </span>
+<span id="cb11-47"><a href="#cb11-47" aria-hidden="true" tabindex="-1"></a>             <span class="at">.by =</span> <span class="fu">c</span>(species_indx, size_indx)) <span class="sc">%&gt;%</span>   <span class="co"># calc fish in bin</span></span>
+<span id="cb11-48"><a href="#cb11-48" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_cutoff, <span class="at">by =</span> <span class="st">"size_indx"</span>) <span class="sc">%&gt;%</span> <span class="co"># add size class info</span></span>
+<span id="cb11-49"><a href="#cb11-49" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_abundance, <span class="at">by =</span> <span class="st">"species_indx"</span>) <span class="sc">%&gt;%</span> <span class="co"># add species abundances</span></span>
+<span id="cb11-50"><a href="#cb11-50" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">f_obs =</span> n<span class="sc">/</span>Total_N) <span class="co"># calc fraction of individuals in size class</span></span>
+<span id="cb11-51"><a href="#cb11-51" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb11-52"><a href="#cb11-52" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(df_fit) <span class="co"># show info used when fitting</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>Rows: 2,310
+Columns: 8
+$ species_indx &lt;int&gt; 78, 78, 3, 3, 3, 223, 36, 36, 36, 17, 1, 1, 3, 3, 4, 36, ~
+$ size_indx    &lt;int&gt; 6, 7, 1, 2, 3, 1, 3, 4, 5, 2, 1, 2, 4, 5, 2, 1, 6, 1, 2, ~
+$ n            &lt;int&gt; 1329, 3101, 43772, 155106, 252391, 679, 9099, 13044, 1596~
+$ size_class   &lt;dbl&gt; 15.0, 20.0, 2.5, 5.0, 7.5, 2.5, 7.5, 10.0, 12.5, 5.0, 2.5~
+$ Total_N      &lt;int&gt; 18359, 18359, 702098, 702098, 702098, 2129, 60328, 60328,~
+$ Mean_L       &lt;dbl&gt; 26.673021, 26.673021, 8.054128, 8.054128, 8.054128, 4.778~
+$ species_name &lt;chr&gt; "Aplodactylus lophodon", "Aplodactylus lophodon", "Atypic~
+$ f_obs        &lt;dbl&gt; 0.072389564, 0.168908982, 0.062344573, 0.220917878, 0.359~</code></pre>
+</div>
+</div>
+</section>
+<section id="data-plots" class="level2">
+<h2 class="anchored" data-anchor-id="data-plots"><em>Data plots</em></h2>
+<div class="cell" height="3">
+<div class="sourceCode cell-code" id="cb13"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a>df_fit <span class="sc">%&gt;%</span> </span>
+<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> <span class="fu">sample</span>(selected_spp, <span class="at">size =</span> <span class="dv">50</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>() <span class="sc">+</span> </span>
+<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(<span class="at">x =</span> size_class, </span>
+<span id="cb13-5"><a href="#cb13-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">y =</span> n) <span class="sc">+</span> </span>
+<span id="cb13-6"><a href="#cb13-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span> </span>
+<span id="cb13-7"><a href="#cb13-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb13-8"><a href="#cb13-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>( <span class="sc">~</span> species_name, <span class="at">ncol =</span> <span class="dv">5</span>) <span class="sc">+</span></span>
+<span id="cb13-9"><a href="#cb13-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_log10</span>() <span class="sc">+</span> </span>
+<span id="cb13-10"><a href="#cb13-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_log10</span>() <span class="sc">+</span></span>
+<span id="cb13-11"><a href="#cb13-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Log Fish length (cm)"</span>,  </span>
+<span id="cb13-12"><a href="#cb13-12" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Log Fish abundance"</span>) <span class="sc">+</span></span>
+<span id="cb13-13"><a href="#cb13-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="simple_system_files/figure-html/unnamed-chunk-9-1.png" class="img-fluid" width="864"></p>
+</div>
+</div>
+<div class="cell" height="3">
+<div class="sourceCode cell-code" id="cb14"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>df_fit <span class="sc">%&gt;%</span> </span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(species_name <span class="sc">%in%</span> <span class="fu">sample</span>(selected_spp, <span class="at">size =</span> <span class="dv">50</span>)) <span class="sc">|&gt;</span> </span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>() <span class="sc">+</span> </span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(<span class="at">x =</span> size_class, </span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">y =</span> n) <span class="sc">+</span> </span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span> </span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_wrap</span>( <span class="sc">~</span> species_name, <span class="at">ncol =</span> <span class="dv">5</span>) <span class="sc">+</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_log10</span>() <span class="sc">+</span> </span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Fish length (cm)"</span>,</span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Log Fish abundance"</span>) <span class="sc">+</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>()</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="simple_system_files/figure-html/unnamed-chunk-10-1.png" class="img-fluid" width="864"></p>
+</div>
+</div>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb15"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>df_abundance <span class="sc">%&gt;%</span> </span>
+<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>() <span class="sc">+</span></span>
+<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">aes</span>(<span class="at">x =</span> Mean_L, <span class="at">y =</span> Total_N) <span class="sc">+</span></span>
+<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>(<span class="at">color =</span> <span class="st">"red"</span>) <span class="sc">+</span> </span>
+<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">x =</span> <span class="st">"Observed mean fish length (cm)"</span>, </span>
+<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>       <span class="at">y =</span> <span class="st">"Abundance"</span>) <span class="sc">+</span></span>
+<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_log10</span>() <span class="sc">+</span></span>
+<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_log10</span>() <span class="sc">+</span> </span>
+<span id="cb15-9"><a href="#cb15-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_bw</span>() <span class="sc">+</span></span>
+<span id="cb15-10"><a href="#cb15-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">stat_smooth</span>(<span class="at">method =</span> <span class="st">"loess"</span>, </span>
+<span id="cb15-11"><a href="#cb15-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">formula =</span> <span class="st">"y ~ x"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<p><img src="simple_system_files/figure-html/unnamed-chunk-11-1.png" class="img-fluid" width="672"></p>
+</div>
+</div>
+</section>
+<section id="bayesian-model-fit" class="level2">
+<h2 class="anchored" data-anchor-id="bayesian-model-fit"><em>Bayesian Model Fit</em></h2>
+<section id="model-set-up" class="level3">
+<h3 class="anchored" data-anchor-id="model-set-up">Model set up</h3>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb16"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>stan_dat <span class="ot">&lt;-</span> <span class="fu">list</span>(</span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="at">I =</span> <span class="fu">nrow</span>(df_fit), <span class="co"># number of observations</span></span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="at">S =</span> <span class="fu">max</span>(df_fit<span class="sc">$</span>species_indx), <span class="co"># number of species</span></span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">B =</span> <span class="fu">max</span>(df_fit<span class="sc">$</span>size_indx), <span class="co"># number of bins</span></span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">l =</span> cutoff[<span class="dv">1</span><span class="sc">:</span><span class="fu">max</span>(df_fit<span class="sc">$</span>size_indx)], <span class="co"># length cut-offs</span></span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  <span class="at">s =</span> df_fit<span class="sc">$</span>species_indx, <span class="co"># species</span></span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  <span class="at">b =</span> df_fit<span class="sc">$</span>size_indx, <span class="co"># length bin</span></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>  <span class="at">n =</span> df_fit<span class="sc">$</span>n) <span class="co"># individual counts    </span></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-10"><a href="#cb16-10" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(stan_dat) <span class="co"># show data fed to rstan</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output cell-output-stdout">
+<pre><code>List of 7
+ $ I: int 2310
+ $ S: int 251
+ $ B: int 23
+ $ l: num [1:23] 2.5 5 7.5 10 12.5 15 20 25 30 35 ...
+ $ s: int [1:2310] 78 78 3 3 3 223 36 36 36 17 ...
+ $ b: int [1:2310] 6 7 1 2 3 1 3 4 5 2 ...
+ $ n: int [1:2310] 1329 3101 43772 155106 252391 679 9099 13044 15965 16354 ...</code></pre>
+</div>
+</div>
+</section>
+<section id="running-the-model" class="level3">
+<h3 class="anchored" data-anchor-id="running-the-model">Running the model</h3>
+<!-- ```{r} -->
+<!-- if(!file.exists("output/stan/lnorm_fit.rds")){ -->
+<!--   # fit the log-normal pdf model! -->
+<!-- stan(file = 'data/stan_models/LogNormalFit_FJH.stan',  -->
+<!--                data = stan_dat, -->
+<!--                iter = 600,  -->
+<!--                warmup = 200,  -->
+<!--                chains = 3,  -->
+<!--                refresh = 200) |>  -->
+<!-- saveRDS("output/stan/lnorm_fit.rds") -->
+<!-- } -->
+<!-- fit_ln <- readRDS("output/stan/lnorm_fit.rds") -->
+<!-- ``` -->
+<!-- ### Checking the model fit -->
+<!-- ```{r} -->
+<!-- # check out some predicted model parameters and log-likelihood -->
+<!-- model_par <- c("lp__",  -->
+<!--                "ln_sigma[1]", -->
+<!--                "ln_sigma[2]", -->
+<!--                "ln_sigma[3]", -->
+<!--                "ln_mu[1]",  -->
+<!--                "ln_mu[2]",  -->
+<!--                "ln_mu[3]") -->
+<!-- # check for chain convergence -->
+<!-- rstan::traceplot(object = fit_ln,  -->
+<!--                  pars = model_par,  -->
+<!--                  inc_warmup = TRUE,  -->
+<!--                  ncol = 5) -->
+<!-- ``` -->
+<!-- ### Summarising the model coefficients -->
+<!-- ```{r} -->
+<!-- # calculate the predicted mean length of each species and 90% credible interval -->
+<!-- l_par <- rstan::extract(fit_ln, pars = c("ln_sigma", "ln_mu")) -->
+
+<!-- par_table <-  -->
+<!--   tibble( -->
+<!--     # CHECK THIS: IS THIS THE RIGHT ORDER OF THE SPECIES NAMES??? -->
+<!--     species_name = spp_list$species_name, -->
+<!--     ln_sigma = l_par$ln_sigma[1,], -->
+<!--        ln_mu = l_par$ln_mu[1,])  -->
+
+<!-- par_table_long <-  -->
+<!--   par_table |>  -->
+<!--   pivot_longer(cols = c(ln_sigma, ln_mu), -->
+<!--                names_to = "par") -->
+
+<!-- par_table_long |>  -->
+<!--   ggplot() + -->
+<!--   aes(x = value,  -->
+<!--       col = par) +  -->
+<!--   geom_density() -->
+<!-- df_abundance |>  -->
+
+<!--   left_join(par_table) |>  -->
+<!--   ggplot() + -->
+<!--   aes( -->
+<!--     x = Mean_L,  -->
+<!--     y = ln_mu -->
+<!--   ) + -->
+<!--   geom_point() + -->
+<!--   geom_line(aes(y = log(Mean_L))) -->
+<!-- df_abundance |>  -->
+
+<!--   left_join(par_table) |>  -->
+<!--   ggplot() + -->
+<!--   aes( -->
+<!--     x = Mean_L,  -->
+<!--     y = ln_sigma -->
+<!--   ) + -->
+<!--   geom_point() -->
+
+<!-- par_table |>  -->
+<!--   ggplot() + -->
+<!--   aes(x = ln_mu,  -->
+<!--       y = ln_sigma |> exp()) + -->
+<!--   geom_point() -->
+<!-- ``` -->
+<!-- ### Comparing observed and modelled scaled size -->
+<!-- ```{r} -->
+<!-- func1 <- function(df) { -->
+<!--   tibble( -->
+<!--     x = seq(1, 100, by = 0.2),  -->
+<!--     y =  -->
+<!--   dlnorm(x = x,  -->
+<!--          meanlog = df$ln_mu,  -->
+<!--          sdlog = exp(df$ln_sigma)) -->
+<!--   ) -->
+<!-- } -->
+
+<!-- par_table |>  -->
+<!--   group_nest(species_name) |>  -->
+<!--   mutate(new = map(.x = data,  -->
+<!--                    .f = func1)) |>  -->
+<!--   unnest(cols = c(new, data)) |>  -->
+<!--   left_join(df_abundance,  -->
+<!--             by = join_by(species_name)) |>  -->
+<!--   mutate(x_scaled = x/Mean_L) |>  -->
+<!--   ggplot() + -->
+<!--   aes(x = x_scaled |> log(),  -->
+<!--       y = y |> log(),  -->
+<!--       col = species_name) + -->
+<!--   geom_path() + -->
+<!--   theme(legend.position = "none") -->
+<!-- df_fit |>  -->
+<!--   select(species_name, n, size_class, Mean_L, Total_N) |>  -->
+<!--   mutate(scaled_n = n/Total_N,  -->
+<!--          scaled_l = size_class/Mean_L) |>  -->
+<!--   ggplot() +  -->
+<!--   aes(  -->
+<!--     x = log(scaled_l), -->
+<!--     y = log(scaled_n)) + -->
+<!--   geom_path(aes(col = species_name),  -->
+<!--             alpha = 0.2) + -->
+<!--   theme(legend.position = "none") + -->
+<!--   geom_smooth() -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- # calculate the predicted mean length of each species and 90% credible interval -->
+<!-- l_par <- rstan::extract(fit_ln,  -->
+<!--                         pars = c("ln_sigma", "ln_mu")) -->
+<!-- df_pred_spp <- tibble(Spp = 1:S) # create a data frame -->
+<!-- # add quantiles of predicted mean fish lengths -->
+<!-- df_pred_spp$medn = exp(apply(X = l_par$ln_mu,  -->
+<!--                              MARGIN = 2,  -->
+<!--                              FUN = quantile,  -->
+<!--                              probs = 0.5)) -->
+<!-- df_pred_spp$lwr90 = exp(apply(X = l_par$ln_mu,  -->
+<!--                               MARGIN = 2,  -->
+<!--                               FUN = quantile,  -->
+<!--                               probs = 0.05)) -->
+<!-- df_pred_spp$upp90 = exp(apply(X = l_par$ln_mu,  -->
+<!--                               MARGIN = 2,  -->
+<!--                               FUN = quantile,  -->
+<!--                               probs = 0.95)) -->
+<!-- ggplot(df_pred_spp) + -->
+<!--   geom_errorbar(aes(x = Spp, ymin = lwr90, ymax = upp90), width = 0.2) + -->
+<!--   geom_point(aes(x =Spp, y = medn)) + -->
+<!--   labs( -->
+<!--     x = "Species id",  -->
+<!--     y = "Median length (cm)",  -->
+<!--     subtitle = "Bars = 90%CI for median") + -->
+<!--   theme_bw() -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- # for each species and bin size predict probability of fish being in the bin -->
+<!-- df_predict$p_ln = 0.0 # create a column -->
+<!-- for (i in 1:nrow(df_predict)) { -->
+<!--   if (df_predict$size_indx[i] == 1)    { # special case for smallest bin -->
+<!--     p_all <- plnorm(cutoff[1], meanlog = l_par$ln_mu[ ,df_predict$spp_id[i]],  -->
+<!--                     sdlog = exp(l_par$ln_sigma)) -->
+<!--   } else { # larger bins -->
+<!--     p_all <- plnorm(cutoff[df_predict$size_indx[i]], meanlog = l_par$ln_mu[ -->
+<!--       ,df_predict$spp_id[i]], sdlog = exp(l_par$ln_sigma)) - -->
+<!--       plnorm(cutoff[df_predict$size_indx[i]-1], meanlog = l_par$ln_mu[ -->
+<!--         ,df_predict$spp_id[i]], sdlog = exp(l_par$ln_sigma)) -->
+<!--   } -->
+<!--   df_predict$p_ln[i] <- mean(p_all) # store the mean predicted probability -->
+<!-- } -->
+<!-- ``` -->
+<!-- ```{r fig.width=9, fig.height=7} -->
+<!-- ggplot() + -->
+<!--   geom_point(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_ln), color = "purple", size = 1) + -->
+<!--   geom_line(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_ln), color = "purple") + -->
+<!--   geom_point(data = filter(df_fit, spp_id %in% spp_plotted), aes(x = size_class, y = f_obs), color= "black", size = 2) + -->
+<!--   facet_wrap( ~ spp_id, ncol = 5) + -->
+<!--   labs(x = "Size class (cm)", y = "Probability") + -->
+<!--   theme_bw() -->
+<!-- ``` -->
+<!-- <!-- ```{r} -->
+<p>–&gt;</p>
+<!-- <!-- fit_n <-  -->
+<p>–&gt;</p>
+<!-- <!--   stan( -->
+<p>–&gt;</p>
+<!-- <!--     file = "data/stan_models/NormalFit.stan",  -->
+<p>–&gt;</p>
+<!-- <!--     data = stan_dat, -->
+<p>–&gt;</p>
+<!-- <!--     iter = 1000,  -->
+<p>–&gt;</p>
+<!-- <!--     warmup = 500,  -->
+<p>–&gt;</p>
+<!-- <!--     chains = 3,  -->
+<p>–&gt;</p>
+<!-- <!--     refresh = 300,  -->
+<p>–&gt;</p>
+<!-- <!--     seed = 1,  -->
+<p>–&gt;</p>
+<!-- <!--   ) -->
+<p>–&gt;</p>
+<!-- <!-- ``` -->
+<p>–&gt;</p>
+<!-- <!-- Model does not want to run, the chains do not converge and we get a large R-hat value -->
+<p>–&gt;</p>
+<!-- <!-- ```{r} -->
+<p>–&gt;</p>
+<!-- <!-- # check out some predicted model parameters and log-likelihood -->
+<p>–&gt;</p>
+<!-- <!-- model_par <- c("lp__", "ln_cv", "ln_mu[1]", "ln_mu[10]", "ln_mu[20]") -->
+<p>–&gt;</p>
+<!-- <!-- # check for chain convergence -->
+<p>–&gt;</p>
+<!-- <!-- rstan::traceplot(object = fit_n, pars = model_par, inc_warmup = TRUE, ncol = 5) -->
+<p>–&gt;</p>
+<!-- <!-- ``` -->
+<p>–&gt;</p>
+<!-- <!-- ### *Model predictions* -->
+<p>–&gt;</p>
+<!-- <!-- ```{r} -->
+<p>–&gt;</p>
+<!-- <!-- # calculate the predicted mean length of each species and 90% credible interval -->
+<p>–&gt;</p>
+<!-- <!-- l_par <- rstan::extract(fit_n, pars = c("ln_cv", "ln_mu")) -->
+<p>–&gt;</p>
+<!-- <!-- df_pred_spp <- tibble(Spp = 1:S) # create a data frame -->
+<p>–&gt;</p>
+<!-- <!-- # add quantiles of predicted mean fish lengths -->
+<p>–&gt;</p>
+<!-- <!-- df_pred_spp$medn = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  -->
+<p>–&gt;</p>
+<!-- <!--                              probs = 0.5)) -->
+<p>–&gt;</p>
+<!-- <!-- df_pred_spp$lwr90 = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  -->
+<p>–&gt;</p>
+<!-- <!--                               probs = 0.05)) -->
+<p>–&gt;</p>
+<!-- <!-- df_pred_spp$upp90 = exp(apply(X = l_par$ln_mu, MARGIN = 2, FUN = quantile,  -->
+<p>–&gt;</p>
+<!-- <!--                               probs = 0.95)) -->
+<p>–&gt;</p>
+<!-- <!-- ggplot(df_pred_spp) + -->
+<p>–&gt;</p>
+<!-- <!--   geom_errorbar(aes(x = Spp, ymin = lwr90, ymax = upp90), width = 0.2) + -->
+<p>–&gt;</p>
+<!-- <!--   geom_point(aes(x =Spp, y = medn)) + -->
+<p>–&gt;</p>
+<!-- <!--   labs(x = "Species id", y = "Mean length (cm)", subtitle = "Bars = 90%CI for mean") + -->
+<p>–&gt;</p>
+<!-- <!--   theme_bw() -->
+<p>–&gt;</p>
+<!-- <!-- ``` -->
+<p>–&gt;</p>
+<!-- <!-- ```{r} -->
+<p>–&gt;</p>
+<!-- <!-- # for each species and bin size predict probability of fish being in the bin -->
+<p>–&gt;</p>
+<!-- <!-- df_predict <- expand_grid( -->
+<p>–&gt;</p>
+<!-- <!--   spp_id = 1:S, size_indx = 1:B) -->
+<p>–&gt;</p>
+<!-- <!-- df_predict$p_n = 0.0 # create a column -->
+<p>–&gt;</p>
+<!-- <!-- for (i in 1:nrow(df_predict)) { -->
+<p>–&gt;</p>
+<!-- <!--   if (df_predict$size_indx[i] == 1)    { # special case for smallest bin -->
+<p>–&gt;</p>
+<!-- <!--     p_all <- pnorm(cutoff[1], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  -->
+<p>–&gt;</p>
+<!-- <!--                    sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) -->
+<p>–&gt;</p>
+<!-- <!--   } else { # larger bins -->
+<p>–&gt;</p>
+<!-- <!--     p_all <- pnorm(cutoff[df_predict$size_indx[i]], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  -->
+<p>–&gt;</p>
+<!-- <!--                    sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) - -->
+<p>–&gt;</p>
+<!-- <!--       pnorm(cutoff[df_predict$size_indx[i]-1], mean = exp(l_par$ln_mu[ ,df_predict$spp_id[i]]),  -->
+<p>–&gt;</p>
+<!-- <!--             sd = exp(l_par$ln_mu[ ,df_predict$spp_id[i]])*exp(l_par$ln_cv)) -->
+<p>–&gt;</p>
+<!-- <!--   } -->
+<p>–&gt;</p>
+<!-- <!--   df_predict$p_n[i] <- mean(p_all) # store the mean predicted probability -->
+<p>–&gt;</p>
+<!-- <!-- } -->
+<p>–&gt;</p>
+<!-- <!-- df_predict <- left_join(df_predict, df_cutoff, by = "size_indx") # add bin sizes -->
+<p>–&gt;</p>
+<!-- <!-- ``` -->
+<p>–&gt;</p>
+<!-- <!-- ```{r fig.width=9, fig.height=7} -->
+<p>–&gt;</p>
+<!-- <!-- ggplot() + -->
+<p>–&gt;</p>
+<!-- <!--   geom_point(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_n), color = "red", size = 1) + -->
+<p>–&gt;</p>
+<!-- <!--   geom_line(data = filter(df_predict, spp_id %in% spp_plotted), aes(x = size_class, y = p_n), color = "red") + -->
+<p>–&gt;</p>
+<!-- <!--   geom_point(data = filter(df_fit, spp_id %in% spp_plotted), aes(x = size_class, y = f_obs), color= "black", size = 2) + -->
+<p>–&gt;</p>
+<!-- <!--   facet_wrap( ~ spp_id, ncol = 5) + -->
+<p>–&gt;</p>
+<!-- <!--   labs(x = "Size class (cm)", y = "Probability") + -->
+<p>–&gt;</p>
+<!-- <!--   theme_bw() -->
+<p>–&gt;</p>
+<!-- <!-- ``` -->
+<p>–&gt;</p>
+<!-- ```{r fig.width=9, fig.height=7} -->
+<!-- ggplot() + -->
+<!--   geom_point(data = filter(df_predict, spp_id %in% spp_plotted, p_n > 0.001),  -->
+<!--              aes(x = size_class, y = p_n), color = "red", size = 1) + -->
+<!--   geom_line(data = filter(df_predict, spp_id %in% spp_plotted, p_n > 0.001),  -->
+<!--             aes(x = size_class, y = p_n), color = "red") + -->
+<!--   geom_point(data = filter(df_predict, spp_id %in% spp_plotted, p_ln > 0.001),  -->
+<!--              aes(x = size_class, y = p_ln), color = "purple", size = 1) + -->
+<!--   geom_line(data = filter(df_predict, spp_id %in% spp_plotted, p_ln > 0.001),  -->
+<!--             aes(x = size_class, y = p_ln), color = "purple") + -->
+<!--   geom_point(data = filter(df_fit, spp_id %in% spp_plotted),  -->
+<!--              aes(x = size_class, y = f_obs), color= "black", size = 2) + -->
+<!--   scale_x_log10() + scale_y_log10() + -->
+<!--   labs(caption = "Black = observed fractions, red/purple is predicted fractions if normally/log-normally distributed and all species have the same coeff. of variation.") + -->
+<!--   facet_wrap( ~ spp_id, ncol = 5) + -->
+<!--   labs(x = "Size class (cm)", y = "Probability") + -->
+<!--   theme_bw() -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- ll_ln <- rstan::extract(fit_ln, pars = c("lp__")) -->
+<!-- mean(ll_ln$lp__) # log-likelihood of log-normal assumption -->
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- ll_n <- rstan::extract(fit_n, pars = c("lp__")) -->
+<!-- mean(ll_n$lp__) # log-likelihood of normal assumption -->
+<!-- ``` -->
+
+
+
+</section>
+</section>
+
+<div id="quarto-appendix" class="default"><section class="quarto-appendix-contents" role="doc-bibliography"><h2 class="anchored quarto-appendix-heading">References</h2><div id="refs" class="references csl-bib-body hanging-indent" role="doc-bibliography">
+<div id="ref-audzijonyte2020" class="csl-entry" role="doc-biblioentry">
+Audzijonyte, Asta, Shane A. Richards, Rick D. Stuart-Smith, Gretta Pecl, Graham J. Edgar, Neville S. Barrett, Nicholas Payne, and Julia L. Blanchard. 2020. <span>“Fish Body Sizes Change with Temperature but Not All Species Shrink with Warming.”</span> <em>Nature Ecology &amp; Evolution</em> 4 (6): 809–14. <a href="https://doi.org/10.1038/s41559-020-1171-0">https://doi.org/10.1038/s41559-020-1171-0</a>.
+</div>
+</div></section></div></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+window.document.addEventListener("DOMContentLoaded", function (event) {
+  const toggleBodyColorMode = (bsSheetEl) => {
+    const mode = bsSheetEl.getAttribute("data-mode");
+    const bodyEl = window.document.querySelector("body");
+    if (mode === "dark") {
+      bodyEl.classList.add("quarto-dark");
+      bodyEl.classList.remove("quarto-light");
+    } else {
+      bodyEl.classList.add("quarto-light");
+      bodyEl.classList.remove("quarto-dark");
+    }
+  }
+  const toggleBodyColorPrimary = () => {
+    const bsSheetEl = window.document.querySelector("link#quarto-bootstrap");
+    if (bsSheetEl) {
+      toggleBodyColorMode(bsSheetEl);
+    }
+  }
+  toggleBodyColorPrimary();  
+  const icon = "";
+  const anchorJS = new window.AnchorJS();
+  anchorJS.options = {
+    placement: 'right',
+    icon: icon
+  };
+  anchorJS.add('.anchored');
+  const clipboard = new window.ClipboardJS('.code-copy-button', {
+    target: function(trigger) {
+      return trigger.previousElementSibling;
+    }
+  });
+  clipboard.on('success', function(e) {
+    // button target
+    const button = e.trigger;
+    // don't keep focus
+    button.blur();
+    // flash "checked"
+    button.classList.add('code-copy-button-checked');
+    var currentTitle = button.getAttribute("title");
+    button.setAttribute("title", "Copied!");
+    let tooltip;
+    if (window.bootstrap) {
+      button.setAttribute("data-bs-toggle", "tooltip");
+      button.setAttribute("data-bs-placement", "left");
+      button.setAttribute("data-bs-title", "Copied!");
+      tooltip = new bootstrap.Tooltip(button, 
+        { trigger: "manual", 
+          customClass: "code-copy-button-tooltip",
+          offset: [0, -8]});
+      tooltip.show();    
+    }
+    setTimeout(function() {
+      if (tooltip) {
+        tooltip.hide();
+        button.removeAttribute("data-bs-title");
+        button.removeAttribute("data-bs-toggle");
+        button.removeAttribute("data-bs-placement");
+      }
+      button.setAttribute("title", currentTitle);
+      button.classList.remove('code-copy-button-checked');
+    }, 1000);
+    // clear code selection
+    e.clearSelection();
+  });
+  function tippyHover(el, contentFn) {
+    const config = {
+      allowHTML: true,
+      content: contentFn,
+      maxWidth: 500,
+      delay: 100,
+      arrow: false,
+      appendTo: function(el) {
+          return el.parentElement;
+      },
+      interactive: true,
+      interactiveBorder: 10,
+      theme: 'quarto',
+      placement: 'bottom-start'
+    };
+    window.tippy(el, config); 
+  }
+  const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+  for (var i=0; i<noterefs.length; i++) {
+    const ref = noterefs[i];
+    tippyHover(ref, function() {
+      // use id or data attribute instead here
+      let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+      try { href = new URL(href).hash; } catch {}
+      const id = href.replace(/^#\/?/, "");
+      const note = window.document.getElementById(id);
+      return note.innerHTML;
+    });
+  }
+  const findCites = (el) => {
+    const parentEl = el.parentElement;
+    if (parentEl) {
+      const cites = parentEl.dataset.cites;
+      if (cites) {
+        return {
+          el,
+          cites: cites.split(' ')
+        };
+      } else {
+        return findCites(el.parentElement)
+      }
+    } else {
+      return undefined;
+    }
+  };
+  var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+  for (var i=0; i<bibliorefs.length; i++) {
+    const ref = bibliorefs[i];
+    const citeInfo = findCites(ref);
+    if (citeInfo) {
+      tippyHover(citeInfo.el, function() {
+        var popup = window.document.createElement('div');
+        citeInfo.cites.forEach(function(cite) {
+          var citeDiv = window.document.createElement('div');
+          citeDiv.classList.add('hanging-indent');
+          citeDiv.classList.add('csl-entry');
+          var biblioDiv = window.document.getElementById('ref-' + cite);
+          if (biblioDiv) {
+            citeDiv.innerHTML = biblioDiv.innerHTML;
+          }
+          popup.appendChild(citeDiv);
+        });
+        return popup.innerHTML;
+      });
+    }
+  }
+});
+</script>
+</div> <!-- /content -->
+
+
+
+</body></html>

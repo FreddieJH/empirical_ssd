@@ -22,3 +22,17 @@ This leads us to the questions:
 3.  Does a lognormal distribution fit well to the observed data?
 4.  Can we find another distribution that fits better than the lognormal? or add a parameter to the lognormal distribution to account for the 'deviation' from lognormal?
 5.  What is the minimum number of parameters required to fit a distribution to the empirical data that encompasses both the shape and some measure of skewness (maybe a proxy for disturbance).
+
+### Summary of the tabs
+
+1.  Data Cleaning
+
+This tab will go through the the simple data cleaning process, including removing species with too few data points and species and outline the methods used to detect outliers in body size and outliers in geographic location.
+
+2.  Inter-species distribution fitting
+
+This will start with a subset of species and fit a distribution to the spatially and temporally averaged body size data for each species. This will start with just a normal and lognormal distribution
+
+3.  Intra-species distribution fitting
+
+This will look at how distributions change through time and space for a single species.

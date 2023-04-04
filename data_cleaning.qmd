@@ -1,0 +1,899 @@
+---
+title: "Data cleaning"
+editor: visual
+author: Freddie Heather
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+---
+
+```{r setup}
+#| include = FALSE
+
+library(knitr, quietly = TRUE)
+
+knitr::opts_chunk$set(
+  error = FALSE,
+  warning = FALSE, 
+  message = FALSE
+)
+
+```
+
+# Set-up
+
+### Required packages
+
+```{r packages}
+
+library(tidyverse)
+library(arrow)
+library(lubridate)
+library(scales)
+library(ggExtra, include.only = "ggMarginal")
+library(cowplot)
+library(rvest)
+library(magick)
+library(EnvStats, include.only = "rosnerTest")
+library(ozmaps)
+library(CoordinateCleaner, include.only = "cc_outl")
+
+```
+
+# Raw data import
+
+## About the data
+
+The raw data comes from the Reef Life survey dropbox folder. I downloaded only Method 1 data:
+
+-   fish only (non-cryptic species)
+
+-   50m transect line
+
+-   2x blocks, each side of the transect, each block 5m wide
+
+-   total = 50x10 = 500$m^2$ area
+
+I saved this file locally and it is named `ep_m1_ALL.csv`.
+
+First I got the observational level data, the minimum required columns were:
+
+| survey_id | species_name | size_class |
+|-----------|--------------|------------|
+| survey_A  | species_A    | 2.5        |
+| survey_A  | species_A    | 2.5        |
+| survey_A  | species_B    | 7.5        |
+
+Each row corresponds to a single fish individual.
+
+## Reading in the raw data
+
+```{r rawdat-obs-cleaning}
+
+# Observation level data (survey_id, species_name, size)
+if(!file.exists("data/cleaned/obs_data_m1_aus.parquet")){
+  read_csv("data/raw/ep_m1_ALL.csv") %>% 
+    filter(country == "Australia") %>% 
+    filter(method == 1) %>% 
+    filter(size_class > 0) %>% 
+    mutate(species_name = str_remove(species_name, "/fucicola hybrid")) |>
+    group_by(
+      survey_id, 
+      species_name,
+      size_class
+    ) %>% 
+    summarise(total = sum(total),
+              .groups = "drop") %>% 
+    uncount(weights = total) %>% 
+    filter(str_detect(species_name, "[A-Z]{1}[a-z]+\\s[a-z]+")) %>% 
+    filter(!str_detect(species_name, "\\.")) %>% 
+    write_parquet("data/cleaned/obs_data_m1_aus.parquet")
+}
+
+dat_obs <- 
+  "data/cleaned/obs_data_m1_aus.parquet" |> 
+  read_parquet()
+
+
+lmax_table <-
+  dat_obs |> 
+  select(species_name) |> 
+  distinct() |> 
+  find_lmax()
+
+
+```
+
+```{r rawdat-obs-viewing}
+
+dat_obs |> 
+  head()
+
+```
+
+## Creating ID tables
+
+I need a table to link the `survey_id` to the other location information, such as the site name, the latitude and longitude of the site, the date of the survey and the depth of the survey. `dat_surv` will contain all of the survey-level data.
+
+```{r rawdat-surv-cleaning}
+
+# survey-level data (survey_id, site_code, lat, lon etc.)
+if(!file.exists("data/cleaned/survey_list_m1_aus.parquet")){
+  read_csv("data/raw/ep_m1_ALL.csv") %>% 
+    filter(country == "Australia") %>% 
+    select(
+      survey_id,
+      site_code,
+      ecoregion, 
+      latitude, 
+      longitude, 
+      depth, 
+      survey_date
+    ) %>% 
+    distinct() %>%
+    mutate(survey_year = year(survey_date) |> as.integer()) |> 
+    write_parquet("data/cleaned/survey_list_m1_aus.parquet")
+  
+}
+
+dat_surv <- 
+  "data/cleaned/survey_list_m1_aus.parquet" |> 
+  read_parquet()
+
+```
+
+## Raw data summary
+
+Top 6 rows:
+
+```{r rawdat-surv-viewing}
+
+dat_surv |> 
+  head()
+
+```
+
+Numbers:
+
+```{r}
+
+dat_surv |> pull(site_code) |> unique() |> length() |> paste("sites")
+dat_surv |> pull(ecoregion) |> unique() |> length() |> paste("ecoregions")
+dat_obs |> pull(species_name) |> unique() |> length() |> paste("species")
+
+```
+
+# Raw data visualisation
+
+These are the functions used to create the plots.
+
+```{r data-vis-functions}
+
+add_density_margin <- function(ggplot_obj) {
+  ggExtra::ggMarginal(ggplot_obj, "density", margins = "y", linewidth = 2)
+}
+
+
+plot_spp_timeseries <- function(spp_name){
+  
+  size_byyear <-
+    dat_full |> 
+    filter(species_name == spp_name) 
+  
+  meansize_byyear <-
+    size_byyear |> 
+    summarise(mean_size = mean(size_class), 
+              .by = c(survey_year))
+  
+  n_indiv <- 
+    nrow(size_byyear) |> 
+    as.numeric() |> 
+    round(1) |> 
+    format(nsmall = 0, 
+           big.mark = ",")
+  
+  size_byyear |> 
+    count(species_name, survey_year, size_class) |> 
+    ggplot() +
+    aes(
+      x = survey_year, 
+      y = size_class
+    ) +
+    geom_point(aes(size = n), 
+               colour = "grey90") +
+    geom_point(aes(y = mean_size), data = meansize_byyear) +
+    geom_line(aes(y = mean_size), data = meansize_byyear) +
+    labs(
+      x = "Year", 
+      y = "Mean size", 
+      title = paste0(spp_name, " (n = ", n_indiv, ")"),
+      size = "# individuals"
+    ) +
+    scale_y_continuous(labels = label_number(suffix = "cm", accuracy = 1)) +
+    theme_cowplot() +
+    theme(plot.title = element_text(hjust = 0.5),
+          legend.position = c(0.005,1), 
+          legend.justification = c(0,1))
+}
+
+plot_spp_timeseries_withmargin <- function(spp_name){
+  plot_spp_timeseries(spp_name) |> 
+  add_density_margin()
+}
+
+```
+
+## Species body size distributions (SSDs)
+
+We'll start by randomly selecting 20 species. Let's plot the data for the species across all of time.
+
+```{r}
+
+set.seed(1)
+random_selection_spp <- 
+  dat_obs |> 
+  pull(species_name) |> 
+  unique() |> 
+  sample(20)
+
+
+dat_obs |> 
+  filter(species_name %in% random_selection_spp) |> 
+  count(species_name, size_class) |> 
+  ggplot() +
+  aes(
+    x = size_class,
+    y = n
+  ) + 
+  geom_point() +
+  geom_line() +
+  facet_wrap(~species_name, scales = "free")
+  
+```
+
+It's clear that some species are not worth including, for example Bothus pantherinus has a count of 2, and is observed only in one size class (20cm). We therefore should have some lower bounds of data requirements.
+
+# Raw data filtering
+
+Firstly, the species should cover at least three body size classes, otherwise distribution fitting will be quite difficult.
+
+```{r}
+
+# 1274 species
+dat_spp_filter_sizeclasses <- 
+  dat_obs |> 
+  select(species_name, size_class) |> 
+  distinct() |> 
+  count(species_name) |> 
+  filter(n >= 3) |>  
+  pull(species_name)
+
+# removing species that have less than 3 body size classes
+dat_obs_f1 <- 
+  dat_obs |> 
+  filter(species_name %in% dat_spp_filter_sizeclasses)
+
+```
+
+It's also worth having a minimum number of total observations for a species. Let's have a look at the density distribution of total abundances for each.
+
+```{r}
+
+dat_obs_f1 |> 
+  count(species_name) |> 
+  ggplot() +
+  aes(
+    x = n 
+  ) + 
+  geom_density() +
+  labs(x = "Species total observations",
+       y = "Probability density", 
+       caption = "Dotted vertical line at 200 individuals within a species") +
+  scale_x_continuous(trans = "log10", label = label_number()) +
+  geom_vline(xintercept = 200, lty = 2)
+
+```
+
+There is a peak in total species abundance at around 200 individuals, which seems like a reasonable cut-off to use.
+
+```{r}
+
+# 776 species
+dat_spp_filter_totaln <- 
+  dat_obs_f1 |> 
+  count(species_name) |> 
+  filter(n >= 200) |> 
+  pull(species_name)
+
+# removing species that have less than 200 total observations
+dat_obs_f2 <- 
+  dat_obs_f1 |> 
+  filter(species_name %in% dat_spp_filter_totaln)
+
+```
+
+We now have a subset (n = 776 species) of the total dataset (n = 1646 species).
+
+# Error checking
+
+In such a large dataset, there are bound to be errors in body size estimates or species identification.
+
+## Errors in body size
+
+### Visualising errors in body size
+
+One way to do this, would be to look at the univariate body size distribution of each species and identify potential outliers.
+
+```{r}
+
+spp_size_nsurvs <- 
+  dat_obs_f2 |> 
+  distinct() |> 
+  count(
+    species_name,
+    size_class,
+    name = "nsurvs"
+  ) |> 
+  sbss::find_lmax()
+
+
+for(i in unique(spp_size_nsurvs$species_name)){
+  file_name <- paste0("output/figs/error_checking/bodysize/ssd/", 
+                      i, 
+                      ".png")
+  
+  
+  if(!file.exists(file_name)){
+    
+  
+    spp_lmax <- 
+      spp_size_nsurvs  |> 
+      filter(species_name == i) |> 
+      pull(lmax) |> 
+      unique() |> 
+      round(digits = 1)
+    
+    p <- 
+      spp_size_nsurvs |> 
+      filter(species_name == i) |> 
+      ggplot() +
+      aes(
+        x = size_class, 
+        y = nsurvs
+      ) +
+      geom_point() +
+      geom_line() +
+      #scale_y_continuous(trans = "log10", 
+      #                   label = label_number(scale_cut = cut_short_scale())) +
+      geomtextpath::geom_textvline(xintercept = spp_lmax, lty = 2, label = paste(spp_lmax, "cm")) + 
+      scale_x_continuous(label = label_number(suffix = "cm")) +
+      labs(x = "Body size class",
+           y = "Number of surveys", 
+           caption = "Vertical dotted line represents the Fishbase LMAX for the species") +
+      theme_cowplot() 
+    
+    ggsave(filename = file_name,
+      plot = p,
+       height = 8, 
+      width = 16, 
+      units = "cm")
+  }
+}
+
+
+```
+
+Let's look at just one of those species size distributions:
+
+```{r}
+
+file_name |> 
+  include_graphics()
+
+```
+
+In some cases it is obvious that there are some outliers (see Halichoeres biocellatus).
+
+```{r}
+
+"output/figs/error_checking/bodysize/ssd/Halichoeres biocellatus.png" |> 
+  include_graphics()
+
+```
+
+### Detection of errors in body size
+
+I played around with Z-transformation, but i found the best method of estimating outliers was using the Rosner's test. I decided to use the Rosner's test on the log(body size) instead of body size as this better accounts for the normality assumption of the Rosner's test.
+
+```{r rosners-functions}
+
+detect_outliers <- function(size_vec, logvals = TRUE){
+  
+  
+    if(logvals){
+      vec <- log(size_vec)
+    } else {
+      vec <- size_vec
+    }
+  
+  # rosnerTest doesn't like more than 10 potential outliers
+  nn <- ifelse(length(unique(vec)) > 10, 10, length(unique(vec)))
+  
+  if(length(unique(vec)) > 3) {
+    out <- 
+      vec |>  
+      EnvStats::rosnerTest(k = nn-2) |> 
+      pluck("all.stats") |> 
+      as_tibble() |> 
+      filter(Outlier) |> 
+      pull(Value)
+    
+    vec %in% out
+  } else {
+    rep(FALSE, length(vec))
+  }
+
+}
+```
+
+We want to only look at body sizes that are greater than the mean body size of the species, i.e. we don't care about outliers on the smaller body size end, as these could quite plausibly be juveniles of the species, therefore difficult to definitively determine to be an outlier.
+
+```{r}
+
+spp_meansizes <- 
+  dat_obs_f2 |> 
+  group_by(species_name) |> 
+  mutate(spp_meansize = mean(size_class)) |> 
+  select(species_name, 
+         spp_meansize) |> 
+  distinct()
+
+# 89 species that may have oversized estimates
+rosner_outliers <- 
+  dat_obs_f2 |> 
+  group_by(species_name) |> 
+  mutate(is_outlier = detect_outliers(size_class, logvals = TRUE)) |> 
+  filter(is_outlier) |> 
+  left_join(spp_meansizes, join_by(species_name)) |> 
+  filter(size_class > spp_meansize) |> 
+  count(species_name, size_class)
+
+dat_obs_f2_hasoutliers <-
+  dat_obs_f2 |> 
+  filter(species_name %in% rosner_outliers$species_name) |> 
+  left_join(lmax_table)
+
+
+for(i in unique(dat_obs_f2_hasoutliers$species_name)){
+  file_name <- paste0("output/figs/error_checking/bodysize/ssd/highlighting_outliers/", 
+                      i, 
+                      ".png")
+  
+  
+  if(!file.exists(file_name)){
+    
+    p <- 
+      dat_obs_f2_hasoutliers |> 
+      filter(species_name == i) |> 
+      count(size_class) |> 
+      ggplot() +
+      aes(
+        x = size_class, 
+        y = n
+      ) +
+      geom_point() +
+      geom_line() +
+      geom_point(data = 
+                   rosner_outliers |> 
+      filter(species_name == i), 
+                 pch = 21,
+                 stroke = 2,
+      size = 4,
+                 colour = "red") +
+      scale_y_continuous(trans = "log10") +
+      scale_x_continuous(label = label_number(suffix = "cm")) +
+      labs(x = "Body size class",
+           y = "Count (log scale)") +
+      theme_cowplot() 
+    
+    ggsave(filename = file_name,
+      plot = p,
+       height = 8, 
+      width = 16, 
+      units = "cm")
+  }
+}
+
+```
+
+Of these, I would say only a handful of them are actually outliers. I will then take those and look at the most extreme Z-transformed scores.
+
+```{r}
+
+
+ztrans_outliers <-
+  dat_obs_f2_hasoutliers |>
+  count(species_name, survey_id, size_class, 
+        name = "nindivs") |> 
+  group_by(species_name) |> 
+  mutate(size_class_z = scale(size_class) |> as.numeric()) |> 
+  count(species_name, 
+        size_class, 
+        size_class_z,
+        name = "n_survs") |> 
+  filter(size_class_z > 3) |> 
+  left_join(lmax_table) |> 
+  filter(size_class > lmax*1.2) |> 
+  select(species_name, size_class) |> 
+  distinct() |> 
+  mutate(is_ztrans_outlier = TRUE) |> 
+  ungroup()
+
+dat_obs_f2_hasoutliers_extreme <-
+  dat_obs_f2 |> 
+  filter(species_name %in% ztrans_outliers$species_name) |> 
+  count(species_name, size_class, 
+        name = "n_survs") |> 
+  left_join(lmax_table)  |> 
+  left_join(ztrans_outliers)
+  
+for(i in unique(dat_obs_f2_hasoutliers_extreme$species_name)){
+  file_name <- paste0("output/figs/error_checking/bodysize/ssd/highlighting_outliers/extreme/", 
+                      i, 
+                      ".png")
+  
+  
+  if(!file.exists(file_name)){
+    
+  
+  p_dat <-
+    dat_obs_f2_hasoutliers_extreme |> 
+    filter(species_name == i)
+    
+  spp_lmax <- 
+    p_dat |> 
+    pull(lmax) |> 
+    unique() |> 
+    round(digits = 1)
+    
+    p <- 
+      p_dat |> 
+      ggplot() +
+      aes(
+        x = size_class, 
+        y = n_survs
+      ) +
+      geom_point() +
+      geom_line() +
+      geom_point(data = p_dat |> filter(!is.na(is_ztrans_outlier)), 
+                 pch = 21,
+                 stroke = 2,
+      size = 4,
+                 colour = "red") +
+      geomtextpath::geom_textvline(xintercept = spp_lmax, 
+                                   lty = 2, 
+                                   label = paste(spp_lmax, "cm")) +
+      # scale_y_continuous(trans = "log10") +
+      scale_x_continuous(label = label_number(suffix = "cm")) +
+      labs(x = "Body size class",
+           y = "Number of surveys", 
+           caption = "Z(size) > 3, and size > fishbase LMAX*1.2") +
+      theme_cowplot() 
+    
+    ggsave(filename = file_name,
+      plot = p,
+       height = 8, 
+      width = 16, 
+      units = "cm")
+  }
+}
+
+```
+
+I have gotten it down to 25 species with potential body size errors.
+
+### Removing body size outliers
+
+I think that most of these should be removed, except for the species Parma victoriae which looks bimodal, Ostorhinchus neotes and Pomacentrus bankanensis which could are plausible body sizes.
+
+```{r}
+
+
+dat_obs_f3 <-
+  dat_obs_f2 |> 
+  left_join(ztrans_outliers) |> 
+  filter(is.na(is_ztrans_outlier)) |> 
+  select(-is_ztrans_outlier)
+
+dat_obs_f3 |> 
+  write_parquet("output/data/dat_obs_cleaned.parquet")
+
+```
+
+## Errors in location
+
+### Visualising geographic distributions
+
+```{r}
+
+# 
+# for(i in unique(dat_obs_f3$species_name)){
+# 
+#   file_name <- paste0("output/figs/error_checking/geography/",
+#                       i,
+#                       ".png")
+#   if(!file.exists(file_name)){
+# 
+#     plot_dat <-
+#       dat_obs_f3 |>
+#       filter(species_name == i) |>
+#       left_join(dat_surv) |> 
+#       count(species_name, latitude, longitude)
+# 
+#     map_plot <-
+#       ozmap(x = "country") |>
+#       ggplot() +
+#       geom_sf() +
+#       coord_sf() +
+#       geom_point(
+#         aes(
+#           x = longitude,
+#           y = latitude,
+#           size = n
+#         ),
+#         pch = 21,
+#         col = "red",
+#         data = plot_dat
+#       ) +
+#       scale_size_continuous(name = "# individuals",
+#                             trans = "log10",
+#                             label = label_number(scale_cut = cut_short_scale())) +
+# 
+#       theme_void() +
+#       theme(legend.position = c(0.3, 0.5),
+#             legend.justification = c(0.5, 0.5),
+#             plot.title = element_text(hjust = 0.5))
+# 
+#     n_indiv <-
+#       sum(plot_dat$n) |>
+#       as.numeric() |>
+#       round(1) |>
+#       format(nsmall = 0,
+#              big.mark = ",")
+# 
+#     url_vector <-
+#       paste0("https://reeflifesurvey.com//species/", 
+#              i |> 
+#              tolower() |> 
+#              str_replace_all(" ", "-")) |>
+#       read_html() |>
+#       html_elements("img") |>
+#       html_attr("src")
+# 
+#     if(sum(url_vector |> str_detect("species_"))){
+#       hasimage <- 1
+#       myimage <-
+#         url_vector[url_vector |> str_detect("species_")][1] |>
+#         image_read()
+#     } else {
+#       hasimage <- 0
+#     }
+# 
+#     basic_plot <- map_plot
+# 
+#     xrange <- layer_scales(basic_plot)$x$range$range
+#     yrange <- layer_scales(basic_plot)$y$range$range
+# 
+#     p2 <-
+#       map_plot +
+#       labs(caption = "Geographic species distribution",
+#            title = paste0(i, " (n = ", n_indiv, ")")) +
+#       {if(hasimage)      annotation_raster(myimage,
+#                                            xrange[2]-((xrange[2]-xrange[1])*0.2)- (xrange[2]-xrange[1])*.35,
+#                                            xrange[2]- (xrange[2]-xrange[1])*.35,
+#                                            yrange[2]-((yrange[2]-yrange[1])*0.2)- (yrange[2]-yrange[1])*.4,
+#                                            yrange[2] - (yrange[2]-yrange[1])*.4)}
+# 
+# 
+# 
+# 
+#     ggsave(filename = file_name,
+#            plot = add_density_margin(p2),
+#            height = 15,
+#            width = 30,
+#            units = "cm")
+# 
+# 
+#   }
+# }
+
+
+```
+
+### Detecting geographic outliers
+
+```{r}
+
+
+# file_name <- "output/data/error_checking/geography/geog_outliers.csv"
+# 
+# if(!file.exists(file_name)){
+# 
+# vals <-
+#   dat_obs_f3 |>
+#   left_join(dat_surv) |> 
+#   select(species_name,
+#          latitude,
+#         longitude) |> 
+#   distinct() |> 
+#   rename(species = species_name,
+#           decimallongitude = longitude,
+#           decimallatitude = latitude) |>
+#   CoordinateCleaner::cc_outl(value = "flagged")
+# 
+#   dat_obs_f3 |>
+#   left_join(dat_surv) |> 
+#   select(species_name,
+#          latitude,
+#         longitude) |> 
+#   distinct() |> 
+#     mutate(good_geog = vals) |>
+#     write_csv(file_name)
+# }
+
+```
+
+```{r}
+
+# geog_outliers <- 
+#   "output/data/error_checking/geography/geog_outliers.csv" |> 
+#   read_csv() |> 
+#   filter(!good_geog) |> 
+#   mutate(spp_lat_lon = paste(species_name, 
+#                               latitude, 
+#                               longitude, 
+#                               sep = "_"))
+# 
+# dat_obs_f3_hasgeogoutliers <- 
+#   dat_obs_f3 |> 
+#   left_join(dat_surv) |> 
+#   mutate(spp_lat_lon = paste(species_name, 
+#                               latitude, 
+#                               longitude, 
+#                               sep = "_")) |> 
+#   filter(spp_lat_lon %in% geog_outliers$spp_lat_lon) |> 
+#   select(-spp_lat_lon) |> 
+#   left_join(geog_outliers |> 
+#               select(species_name, 
+#                      latitude, 
+#                      longitude) |> 
+#               mutate(geog_outlier = TRUE))
+
+  dat_obs_f3 |>
+    left_join(dat_surv) |>
+  select(latitude, longitude, species_name) |> 
+  distinct() |> 
+  group_by(species_name) |> 
+  mutate(lat_z = scale(latitude) |> as.numeric(),
+         lon_z = scale(longitude) |> as.numeric()) |> 
+    filter(species_name == "Achoerodus viridis") |> view()
+    ggplot(aes(lat_z)) + 
+    geom_density()
+
+
+geog_outliers <- 
+  dat_obs_f3 |>
+  # select(survey_id, species_name) |> 
+  # distinct() |> 
+  # left_join(dat_surv) |>
+  left_join(dat_surv) |>
+  select(latitude, longitude, species_name) |> 
+  distinct() |> 
+  group_by(species_name) |> 
+  mutate(lat_z = scale(latitude) |> as.numeric(),
+         lon_z = scale(longitude) |> as.numeric()) |> 
+  filter(abs(lat_z) > 3 | abs(lon_z) > 3) |> 
+  ungroup()
+
+plot_dat_allspp <- 
+  dat_obs_f3 |>
+      select(survey_id, species_name) |> 
+      distinct() |> 
+      left_join(dat_surv, by = join_by(survey_id)) |>
+      count(species_name, latitude, longitude, 
+            name = "n_survs")
+
+for(i in unique(geog_outliers$species_name)){
+
+  file_name <- paste0("output/figs/error_checking/geography2/",
+                      i,
+                      ".png")
+  if(!file.exists(file_name)){
+
+    plot_dat <-
+      plot_dat_allspp |> 
+      filter(species_name == i) 
+    
+    outlier_dat <-
+      geog_outliers |> 
+      filter(species_name == i)
+
+    map_plot <-
+      ozmap_country |> 
+      ggplot() +
+      geom_sf() +
+      coord_sf() +
+      geom_point(
+        aes(
+          x = longitude,
+          y = latitude,
+          size = n_survs
+        ),
+        data = plot_dat
+      ) +
+      geom_point(
+        aes(
+          x = longitude,
+          y = latitude
+        ),
+        size = 2, 
+        pch = 21,
+        col = "red",
+        data = outlier_dat
+      ) +
+      theme_void() +
+      theme(legend.position = c(0.3, 0.5),
+            legend.justification = c(0.5, 0.5),
+            plot.title = element_text(hjust = 0.5))
+
+    n_survs_total <-
+      sum(plot_dat$n_survs) |>
+      as.numeric() |>
+      round(1) |>
+      format(nsmall = 0,
+             big.mark = ",")
+
+    url_vector <-
+      paste0("https://reeflifesurvey.com//species/",
+             i |>
+             tolower() |>
+             str_replace_all(" ", "-")) |>
+      read_html() |>
+      html_elements("img") |>
+      html_attr("src")
+
+    if(sum(url_vector |> str_detect("species_"))){
+      hasimage <- 1
+      myimage <-
+        url_vector[url_vector |> str_detect("species_")][1] |>
+        image_read()
+    } else {
+      hasimage <- 0
+    }
+
+    xrange <- layer_scales(map_plot)$x$range$range
+    yrange <- layer_scales(map_plot)$y$range$range
+
+    p2 <-
+      map_plot +
+      labs(caption = "Geographic species distribution",
+           title = paste0(i, " (# surveys = ", n_survs_total, ")")) +
+      {if(hasimage)      annotation_raster(myimage,
+                                           xrange[2]-((xrange[2]-xrange[1])*0.2)- (xrange[2]-xrange[1])*.35,
+                                           xrange[2]- (xrange[2]-xrange[1])*.35,
+                                           yrange[2]-((yrange[2]-yrange[1])*0.2)- (yrange[2]-yrange[1])*.4,
+                                           yrange[2] - (yrange[2]-yrange[1])*.4)}
+
+
+
+    ggsave(filename = file_name,
+           plot = ggExtra::ggMarginal(p2, 
+                                      type = "histogram", 
+                                      fill = "red", 
+                                      col = "transparent"),
+           height = 15,
+           width = 30,
+           units = "cm")
+
+
+  }
+}
+```

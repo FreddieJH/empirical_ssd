@@ -41,6 +41,7 @@ if(!file.exists("data/cleaned/survey_list_m1_aus.parquet")){
       depth, 
       survey_date
     )%>% 
+    distinct() %>%
     write_parquet("data/cleaned/survey_list_m1_aus.parquet")
   
 }

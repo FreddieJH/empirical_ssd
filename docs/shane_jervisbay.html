@@ -125,10 +125,9 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 }</script>
 
 
-<link rel="stylesheet" href="styles.css">
 </head>
 
-<body class="nav-sidebar docked">
+<body class="nav-sidebar floating">
 
 <div id="quarto-search-results"></div>
   <header id="quarto-header" class="headroom fixed-top">
@@ -144,7 +143,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <!-- content -->
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article">
 <!-- sidebar -->
-  <nav id="quarto-sidebar" class="sidebar collapse sidebar-navigation docked overflow-auto">
+  <nav id="quarto-sidebar" class="sidebar collapse sidebar-navigation floating overflow-auto">
     <div class="pt-lg-2 mt-2 text-left sidebar-header">
     <div class="sidebar-title mb-0 py-0">
       <a href="./">Empirical species size distribution</a> 
@@ -159,12 +158,27 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
-  <a href="./n3_spp_system.html" class="sidebar-item-text sidebar-link">Simple system</a>
+  <a href="./data_cleaning.html" class="sidebar-item-text sidebar-link">Data cleaning</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./simple_system.html" class="sidebar-item-text sidebar-link">Simple system</a>
   </div>
 </li>
         <li class="sidebar-item">
   <div class="sidebar-item-container"> 
   <a href="./shane_jervisbay.html" class="sidebar-item-text sidebar-link active">Jervis Bay (Shane)</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./gridcell.html" class="sidebar-item-text sidebar-link">Gridcell (single species)</a>
+  </div>
+</li>
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./universal.html" class="sidebar-item-text sidebar-link">Universal body size</a>
   </div>
 </li>
     </ul>
@@ -234,7 +248,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(cowplot)</span>
 <span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(RColorBrewer)</span>
 <span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>df_single <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/JBMP_S3_clean.csv"</span>) <span class="co"># read in individual lengths</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>df_single <span class="ot">&lt;-</span> <span class="fu">read_csv</span>(<span class="st">"data/raw/JBMP_S3_clean.csv"</span>) <span class="co"># read in individual lengths</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 </section>
 <section id="data-wrangling" class="level3">
@@ -256,19 +270,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
 <span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>df_single <span class="ot">&lt;-</span> <span class="fu">left_join</span>(df_single, df_cutoff, <span class="at">by =</span> <span class="st">"size_class"</span>)</span>
 <span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="co"># calculate species counts and mean species lengths</span></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>df_abundance <span class="ot">&lt;-</span> df_single <span class="sc">%&gt;%</span></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(spp_id) <span class="sc">%&gt;%</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">.groups =</span> <span class="st">"drop"</span>, <span class="at">Total_N =</span> <span class="fu">n</span>(), <span class="at">Mean_L =</span> <span class="fu">mean</span>(size_class))</span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a><span class="co"># group counts of same species of same size </span></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>df_fit <span class="ot">&lt;-</span> df_single <span class="sc">%&gt;%</span></span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(spp_id, size_indx, w) <span class="sc">%&gt;%</span></span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">.groups =</span> <span class="st">"drop"</span>, <span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span>   <span class="co"># calc fish in bin</span></span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_cutoff, <span class="at">by =</span> <span class="st">"size_indx"</span>) <span class="sc">%&gt;%</span> <span class="co"># add size class info</span></span>
-<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_abundance, <span class="at">by =</span> <span class="st">"spp_id"</span>) <span class="sc">%&gt;%</span> <span class="co"># add species abundances</span></span>
-<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">f_obs =</span> n<span class="sc">/</span>Total_N) <span class="co"># calc fraction of individuals in size class</span></span>
-<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(df_fit) <span class="co"># show info used when fitting</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>df_abundance <span class="ot">&lt;-</span> </span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a>  df_single <span class="sc">%&gt;%</span></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(spp_id) <span class="sc">%&gt;%</span></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">.groups =</span> <span class="st">"drop"</span>, <span class="at">Total_N =</span> <span class="fu">n</span>(), <span class="at">Mean_L =</span> <span class="fu">mean</span>(size_class))</span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a><span class="co"># group counts of same species of same size </span></span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>df_fit <span class="ot">&lt;-</span> df_single <span class="sc">%&gt;%</span></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(spp_id, size_indx, w) <span class="sc">%&gt;%</span></span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="fu">summarise</span>(<span class="at">.groups =</span> <span class="st">"drop"</span>, <span class="at">n =</span> <span class="fu">n</span>()) <span class="sc">%&gt;%</span>   <span class="co"># calc fish in bin</span></span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_cutoff, <span class="at">by =</span> <span class="st">"size_indx"</span>) <span class="sc">%&gt;%</span> <span class="co"># add size class info</span></span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>  <span class="fu">left_join</span>(df_abundance, <span class="at">by =</span> <span class="st">"spp_id"</span>) <span class="sc">%&gt;%</span> <span class="co"># add species abundances</span></span>
+<span id="cb2-28"><a href="#cb2-28" aria-hidden="true" tabindex="-1"></a>    <span class="fu">mutate</span>(<span class="at">f_obs =</span> n<span class="sc">/</span>Total_N) <span class="co"># calc fraction of individuals in size class</span></span>
+<span id="cb2-29"><a href="#cb2-29" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-30"><a href="#cb2-30" aria-hidden="true" tabindex="-1"></a><span class="fu">glimpse</span>(df_fit) <span class="co"># show info used when fitting</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre><code>Rows: 405
 Columns: 8
@@ -410,9 +425,9 @@ Chain 1: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 1: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 1: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 1: 
-Chain 1:  Elapsed Time: 3.617 seconds (Warm-up)
-Chain 1:                0.695 seconds (Sampling)
-Chain 1:                4.312 seconds (Total)
+Chain 1:  Elapsed Time: 3.31 seconds (Warm-up)
+Chain 1:                0.643 seconds (Sampling)
+Chain 1:                3.953 seconds (Total)
 Chain 1: 
 
 SAMPLING FOR MODEL 'NormalFit' NOW (CHAIN 2).
@@ -622,9 +637,9 @@ Chain 2: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 2: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 2: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 2: 
-Chain 2:  Elapsed Time: 3.38 seconds (Warm-up)
-Chain 2:                0.801 seconds (Sampling)
-Chain 2:                4.181 seconds (Total)
+Chain 2:  Elapsed Time: 3.377 seconds (Warm-up)
+Chain 2:                0.694 seconds (Sampling)
+Chain 2:                4.071 seconds (Total)
 Chain 2: 
 
 SAMPLING FOR MODEL 'NormalFit' NOW (CHAIN 3).
@@ -720,9 +735,9 @@ Chain 3: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 3: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 3: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 3: 
-Chain 3:  Elapsed Time: 4.089 seconds (Warm-up)
-Chain 3:                0.728 seconds (Sampling)
-Chain 3:                4.817 seconds (Total)
+Chain 3:  Elapsed Time: 3.801 seconds (Warm-up)
+Chain 3:                0.726 seconds (Sampling)
+Chain 3:                4.527 seconds (Total)
 Chain 3: </code></pre>
 </div>
 </div>
@@ -801,8 +816,8 @@ Chain 3: </code></pre>
 <pre><code>
 SAMPLING FOR MODEL 'LogNormalFit' NOW (CHAIN 1).
 Chain 1: 
-Chain 1: Gradient evaluation took 0.001 seconds
-Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 10 seconds.
+Chain 1: Gradient evaluation took 0 seconds
+Chain 1: 1000 transitions using 10 leapfrog steps per transition would take 0 seconds.
 Chain 1: Adjust your expectations accordingly!
 Chain 1: 
 Chain 1: 
@@ -811,9 +826,9 @@ Chain 1: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 1: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 1: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 1: 
-Chain 1:  Elapsed Time: 2.556 seconds (Warm-up)
-Chain 1:                0.934 seconds (Sampling)
-Chain 1:                3.49 seconds (Total)
+Chain 1:  Elapsed Time: 2.056 seconds (Warm-up)
+Chain 1:                0.634 seconds (Sampling)
+Chain 1:                2.69 seconds (Total)
 Chain 1: 
 
 SAMPLING FOR MODEL 'LogNormalFit' NOW (CHAIN 2).
@@ -828,9 +843,9 @@ Chain 2: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 2: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 2: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 2: 
-Chain 2:  Elapsed Time: 2.338 seconds (Warm-up)
-Chain 2:                0.79 seconds (Sampling)
-Chain 2:                3.128 seconds (Total)
+Chain 2:  Elapsed Time: 2.358 seconds (Warm-up)
+Chain 2:                0.764 seconds (Sampling)
+Chain 2:                3.122 seconds (Total)
 Chain 2: 
 
 SAMPLING FOR MODEL 'LogNormalFit' NOW (CHAIN 3).
@@ -845,9 +860,9 @@ Chain 3: Iteration: 200 / 400 [ 50%]  (Warmup)
 Chain 3: Iteration: 201 / 400 [ 50%]  (Sampling)
 Chain 3: Iteration: 400 / 400 [100%]  (Sampling)
 Chain 3: 
-Chain 3:  Elapsed Time: 1.912 seconds (Warm-up)
-Chain 3:                0.656 seconds (Sampling)
-Chain 3:                2.568 seconds (Total)
+Chain 3:  Elapsed Time: 2.468 seconds (Warm-up)
+Chain 3:                1.105 seconds (Sampling)
+Chain 3:                3.573 seconds (Total)
 Chain 3: </code></pre>
 </div>
 </div>
@@ -940,7 +955,7 @@ Chain 3: </code></pre>
 <div class="sourceCode cell-code" id="cb22"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>ll_ln <span class="ot">&lt;-</span> rstan<span class="sc">::</span><span class="fu">extract</span>(fit_ln, <span class="at">pars =</span> <span class="fu">c</span>(<span class="st">"lp__"</span>))</span>
 <span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">mean</span>(ll_ln<span class="sc">$</span>lp__) <span class="co"># log-likelihood of log-normal assumption</span></span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
-<pre><code>[1] -3555.827</code></pre>
+<pre><code>[1] -3622.777</code></pre>
 </div>
 </div>
 <div class="cell">

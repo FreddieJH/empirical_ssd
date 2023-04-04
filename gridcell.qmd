@@ -1,0 +1,743 @@
+---
+title: "gridcell"
+editor: visual
+bibliography: references.bib
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+
+execute:
+  freeze: auto  # re-render only when source changes
+---
+
+## Analysis set-up
+
+```{r setup}
+#| include = FALSE
+
+library(knitr, quietly = TRUE)
+
+knitr::opts_chunk$set(
+  error = FALSE,
+  warning = FALSE, 
+  message = FALSE
+)
+
+source("R/data_cleaning.R")
+
+fig_output_path <- \(x) paste0("output/figs/", x, ".png")
+stan_input_path <- \(x) paste0("data/stan_models/", x, ".stan")
+stan_output_path <- \(x) paste0("output/stan/", x, ".rds")
+```
+
+### Required R packages
+
+```{r packages}
+
+library(tidyverse, quietly = TRUE)
+library(lubridate, quietly = TRUE)
+library(rstan, quietly = TRUE)
+
+```
+
+### Loading data
+
+We will use a subset of RLS data:
+
+1.  Method 1 (fish abundance, species ID, and body size class)
+2.  Australia only
+
+We will also use only species that we know have minimal fishing pressure, these species were selected from the supplementary material of @audzijonyte2020.
+
+```{r import}
+
+
+# Observational-level data (body size, abundance, species, survey ID)
+obs_data <- 
+  "data/raw/obs_data_m1_aus.parquet" |> 
+  read_parquet()
+
+
+# Survey-level information
+survey_list <- 
+  "data/cleaned/survey_list_m1_aus.parquet" |> 
+  read_parquet() 
+
+# Only non-target species
+nontarget_spp <- 
+  "output/data/selected_spp.rds" |> 
+  read_rds()
+
+
+# Reef Life Survey (RLS) size class bins
+cutoff <- c(
+  2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
+  seq(from = 62.5, to = 200, by = 12.5), 
+  seq(from = 250, to = 500, by = 50))
+
+
+# Body size bin upper and lower bounds
+rls_bins <- 
+  tibble(
+    size_index = 0:length(cutoff),
+    size_class = c(0, cutoff),
+    bin_lwr = (size_class + lag(size_class))/2,
+    bin_upr = (size_class + lead(size_class))/2
+  ) |>
+  filter(size_index != 0)
+
+```
+
+### Wrangling data
+
+```{r wrangling}
+
+# Gridding latitude and longitude, to be used later
+obs_data_full <- 
+  obs_data |> 
+  filter(species_name %in% nontarget_spp) |> 
+  left_join(survey_list, by = "survey_id") |> 
+  mutate(lat_grid = floor(latitude), 
+         lon_grid = floor(longitude), 
+         survey_year = year(survey_date)) |> 
+  count(species_name, size_class, lat_grid, survey_year)
+
+```
+
+## Bayesian modelling
+
+We want to start with a single species for simplicity. We want to fit a lognormal distribution for each year and for each location. In this case we define a location as the latitudinal grid-cell, for now this will be the proxy for temperature value.
+
+### Selecting a single species
+
+`Pempheris multiradiata` was selected as it had the most location-year combinations.
+
+```{r data-subsetting}
+
+abundant_spp <- 
+  obs_data_full |> 
+  count(species_name, lat_grid, survey_year) |> 
+  arrange(desc(n)) |> 
+  count(species_name) |> 
+  arrange(desc(n)) |> 
+  head(1) |> 
+  pull(species_name)
+
+
+obs_data_singlespp <- 
+  obs_data_full |> 
+  filter(species_name == abundant_spp)  |> 
+  add_count(species_name, 
+            lat_grid, 
+            survey_year, 
+            name = "n_sizeclasses") |> 
+  filter(n_sizeclasses >= 3) 
+
+```
+
+### Visualising the body size distributions for this species
+
+```{r plot-ssd-observed}
+
+plot_name <- "p_singlespp_byyear_bygrid" |> fig_output_path()
+
+if(!file.exists(plot_name)){
+  
+  obs_data_singlespp |> 
+    ggplot() +
+    aes(
+      x = size_class, 
+      y = n) +
+    geom_path() +
+    facet_grid(survey_year ~ lat_grid, 
+               scales = "free_y") + 
+  ggsave(filename = plot_name)
+}
+
+include_graphics(plot_name)
+
+```
+
+The question is, do the parameters of the lognormal distribution change from year to year and from location to location?
+
+### Normalising the predictor variables
+
+We will Z-transform `latiude` and `survey_year`. To do that we take the difference of the observation and the overall mean (the residual) and divide that by the standard deviation of that variable.
+
+$$
+Z(x_i) = \frac{
+(x_i-\bar{x})
+}{\sigma(x)}
+$$
+
+```{r ztransform}
+
+lats <-   
+  obs_data_singlespp |> 
+  uncount(n) |> 
+  pull(lat_grid) 
+
+years <- 
+    obs_data_singlespp |> 
+  uncount(n) |> 
+  pull(survey_year) 
+
+mean_latgrid <- mean(lats)
+sd_latgrid <- sd(lats)
+
+mean_year <- mean(years)
+sd_year <- sd(years)
+
+# Z-transform the location and year
+stan_data <- 
+  obs_data_singlespp |> 
+  select(-n_sizeclasses) |> 
+  uncount(n) |> 
+  left_join(rls_bins, by = join_by(size_class)) |> 
+  mutate(lat_grid_Z = (lat_grid-mean_latgrid)/sd_latgrid,
+         survey_year_Z = (survey_year-mean_year)/sd_year) |> 
+  count(species_name, size_index, size_class, lat_grid_Z, survey_year_Z)
+
+```
+
+#### Model fitting
+
+```{r mod-fit}
+
+# Data for stan model
+data_list <- list(
+  n_sizebins = max(stan_data$size_index), 
+  n_observations = nrow(stan_data), 
+  sizebin_id = stan_data$size_index, 
+  n_individuals = stan_data$n,
+  upper_sizebin = cutoff[1:max(stan_data$size_index)],
+  lat = stan_data$lat_grid_Z,
+  yr = stan_data$survey_year_Z
+)
+
+
+# model fitting
+if(!file.exists("output/stan/stan_lnorm_gridcells_fitted.rds")){
+  stan(file = 'data/stan_models/lnorm_gridcells.stan', 
+              data = data_list,
+              iter = 600, 
+              warmup = 200, 
+              chains = 3, 
+              refresh = 200, 
+              seed = 1) |> 
+    write_rds("output/stan/stan_lnorm_gridcells_fitted.rds")
+} 
+
+model <- read_rds("output/stan/stan_lnorm_gridcells_fitted.rds")
+
+```
+
+#### Parameter fit visualisation
+
+We want to check that the chains have converged and the parameter estimates are sensible.
+
+```{r mod-par-vis}
+
+plot_name <- "p_stan_output_onespp" |> fig_output_path()
+
+if(!file.exists(plot_name)){
+  
+    rstan::traceplot(object = model, 
+                 # pars = model_par, 
+                 inc_warmup = TRUE, 
+                 ncol = 3) + 
+  ggsave(filename = plot_name)
+  
+}
+
+include_graphics(plot_name)
+
+```
+
+#### Predictions
+
+##### Functions
+
+```{r mod-pred-funcs}
+
+# Extract the mean value of a parameter from the stan model
+param_meanval <- function(stan_model, param){
+   
+  summary(stan_model)$summary |> 
+    as_tibble(rownames = "parameter") |> 
+    filter(parameter == param) |> 
+    pull(mean)
+  
+}
+
+# Extract the cumulative probability of being less than a given size class, and for a specific latitude and year
+model_predict <- function(stan_model, size_class, lat_Z, year_Z){
+
+  meanlog_est <- 
+    param_meanval(stan_model, "ln_mu") +
+    (param_meanval(stan_model, "ln_mu_lat")*lat_Z) +
+    (param_meanval(stan_model, "ln_mu_year")*year_Z) 
+  
+  sdlog_est <- 
+    param_meanval(stan_model, "ln_sigma") +
+    (param_meanval(stan_model, "ln_sigma_lat")*lat_Z) +
+    (param_meanval(stan_model, "ln_sigma_year")*year_Z) 
+  
+  plnorm(q = size_class, 
+         meanlog = meanlog_est, 
+         sdlog = exp(sdlog_est))
+  
+}
+
+```
+
+##### Predicting probability
+
+To calculate the probability of being in a certain bin, we want to calculate the cumulative probability of being less than a given size bin (e.g. \`p(x\>6.75cm)\` based on the estimated lognormal distribution for that year\*location combination. The probability of being in that bin will be the probability of being less than the upper limit of that bin minus the probability of being less than the lower limit of that bin.
+
+For estimating we will create a 'prediction table', which is all the combinations of RLS body size bins, latitudes and years (for this species), and then use the fitted stan model to make predictions based on those estimates.
+
+```{r pred-table}
+
+prediction_table <-
+  tibble(
+    size_class = rls_bins$size_class) |> 
+  expand_grid(lat_grid = sort(unique(obs_data_singlespp$lat_grid))) |> 
+  expand_grid(survey_year = sort(unique(obs_data_singlespp$survey_year))) |> 
+  left_join(rls_bins, by = join_by(size_class)) |> 
+  mutate(lat_z = (lat_grid-mean_latgrid)/sd_latgrid,
+         year_z = (survey_year-mean_year)/sd_year) |> 
+  mutate(upr_pred = model_predict(model, bin_upr, lat_z, year_z),
+         lwr_pred = model_predict(model, bin_lwr, lat_z, year_z)) |> 
+  mutate(prob = upr_pred-lwr_pred)
+
+
+prediction_table |> 
+  arrange(lat_grid, survey_year, size_class)
+
+```
+
+```{r plot-mod-preds}
+
+plot_name <- "p_singlespp_byyear_bygrid_pred_p" |> fig_output_path()
+
+if(!file.exists(plot_name)){
+  
+  prediction_table |> 
+    ggplot() +
+    aes(x = size_class, 
+        y = prob) +
+    geom_line() +
+    facet_grid(survey_year ~ lat_grid, scales = "free_y") +
+    lims(
+      x = c(0, 50)
+    ) + 
+    ggsave(filename = plot_name, 
+           width = 22, 
+           height = 12.5)
+  
+}
+
+include_graphics(plot_name)
+
+```
+
+##### Comparing observed and estimated
+
+To compare the model predictions with the observed values we need to calculate the observed probability of being in each RLS size bin. This is calculated as the abundance in that bin divided by the total abundance in that group (i.e. year-by-location-by-species combination).
+
+```{r table-obs-probs}
+
+obs_data_singlespp_prob <- 
+  obs_data_singlespp |> 
+  add_count(lat_grid, survey_year, 
+            wt = n,
+            name = "total_n") |> 
+  mutate(prob_obs = n/total_n) |> 
+  select(size_class, lat_grid, survey_year, prob_obs) |> 
+  distinct()
+
+```
+
+Plotting all the sites on a single figure:
+
+```{r plot-mod-validation-allsites}
+
+plot_name <- "p_singlespp_byyear_bygrid_pred_prob_all" |> fig_output_path()
+
+if(!file.exists(plot_name)){
+  
+  prediction_table |> 
+  left_join(obs_data_singlespp_prob) |> 
+  mutate(prob_obs = replace_na(prob_obs, 0)) |> 
+  pivot_longer(cols = c(prob, prob_obs), 
+               names_to = "prob_type", 
+               values_to = "probability") |> 
+  ggplot() +
+  aes(x = size_class,
+      y =probability, 
+      col = prob_type
+        ) +
+  geom_point() +
+  geom_line() + 
+  facet_grid(survey_year ~ lat_grid, scales = "free_y") +
+  xlim(c(0, 50)) + 
+    ggsave(filename = plot_name, 
+           width = 22, 
+           height = 12.5)
+  
+}
+
+include_graphics(plot_name)
+
+```
+
+...or a subset of sites (for easier visualisation)
+
+```{r plot-mod-validation-subsetsites}
+
+plot_name <- "p_singlespp_byyear_bygrid_pred_prob_subset" |> fig_output_path()
+
+if(!file.exists(plot_name)){
+  
+  prediction_table |> 
+  left_join(obs_data_singlespp_prob) |> 
+  mutate(prob_obs = replace_na(prob_obs, 0)) |> 
+  pivot_longer(cols = c(prob, prob_obs), 
+               names_to = "prob_type", 
+               values_to = "probability") |> 
+    filter(survey_year > 2010, 
+         lat_grid > -35) |> 
+  ggplot() +
+  aes(x = size_class,
+      y =probability, 
+      col = prob_type
+        ) +
+  geom_point() +
+  geom_line() + 
+  facet_grid(survey_year ~ lat_grid, scales = "free_y") +
+  xlim(c(0, 50)) + 
+    ggsave(filename = plot_name, 
+           width = 22, 
+           height = 12.5)
+  
+}
+
+include_graphics(plot_name)
+```
+
+## Multiple distribution fitting
+
+The model doesn't appear to fit that well. It would be good to fit a lognormal distribution to each year-by-location for the species, then we can look at the variability in these parameters for a single species.
+
+Is a single distribution for a single species even a good approximation?
+
+```{r}
+
+combinations_table <- 
+ obs_data_singlespp |> 
+  select(lat_grid, 
+         survey_year) |> 
+  distinct() |> 
+  mutate(combination_id = row_number())
+
+
+# Z-transform the location and year
+stan_data_combinations <- 
+  obs_data_singlespp |> 
+  select(-n_sizeclasses) |> 
+  uncount(n) |> 
+  left_join(rls_bins, 
+            by = join_by(size_class)) |> 
+  left_join(combinations_table, 
+            by = join_by(lat_grid, survey_year)) |> 
+  mutate(lat_grid_Z = (lat_grid-mean_latgrid)/sd_latgrid,
+         survey_year_Z = (survey_year-mean_year)/sd_year) |> 
+  count(species_name, 
+        size_index, 
+        size_class, 
+        combination_id, 
+        lat_grid_Z, 
+        survey_year_Z)
+
+
+# Data for multiple distribution stan model
+data_list_combinations <- list(
+  n_combinations = max(stan_data_combinations$combination_id),
+  n_sizebins = max(stan_data_combinations$size_index), 
+  n_observations = nrow(stan_data_combinations), 
+  sizebin_id = stan_data_combinations$size_index, 
+  combination_id = stan_data_combinations$combination_id,
+  n_individuals = stan_data_combinations$n,
+  upper_sizebin = cutoff[1:max(stan_data_combinations$size_index)]
+)
+
+file_name <- "stan_lnorm_gridcells_combinations_fitted" |> stan_output_path()
+stan_file <- "lnorm_gridcells_combinations" |> stan_input_path()
+
+# model fitting
+if(!file.exists(file_name)){
+  stan(file = stan_file, 
+              data = data_list_combinations,
+              iter = 600, 
+              warmup = 200, 
+              chains = 3, 
+              refresh = 200, 
+              seed = 1) |> 
+    write_rds(file_name)
+} 
+
+model_combinations <- 
+  read_rds(file_name)
+
+```
+
+Let's look at the distribution of the lognormal parameters for each combination of year and location.
+
+```{r}
+
+get_par <- function(stan_model, parameter){
+  stan_model |> 
+  extract() |> 
+  pluck(parameter) |> 
+  as_tibble(rownames = "iteration") |> 
+  pivot_longer(cols = -iteration, 
+               names_prefix = "V",
+               names_transform = list(combination_id = as.numeric),
+               names_to = "combination_id") |> 
+  summarise(!!parameter := mean(value), .by = combination_id)
+}
+
+
+model_combinations_pars <-
+  get_par(model_combinations, "ln_sigma") |> 
+  left_join(get_par(model_combinations, "ln_mu"), 
+            by = join_by(combination_id)) |> 
+  left_join(combinations_table, 
+            by = join_by(combination_id))
+
+```
+
+```{r}
+
+model_combinations_pars |> 
+  ggplot() +
+  aes(
+    x = ln_mu
+  ) +
+  geom_density()
+
+model_combinations_pars |> 
+  ggplot() +
+  aes(
+    x = ln_sigma |> exp()
+  ) +
+  geom_density()
+
+model_combinations_pars |> 
+  ggplot() +
+  aes(
+    y = ln_sigma |> exp(),
+    x = ln_mu 
+  ) +
+  geom_point() +
+  labs(x = "meanlog", y = "sdlog")
+
+
+model_combinations_pars |> 
+  ggplot() +
+  aes(
+    x = as.factor(lat_grid), 
+    y = ln_mu
+  ) +
+  geom_violin()
+
+model_combinations_pars |> 
+  ggplot() +
+  aes(
+    x = as.factor(lat_grid), 
+    y = ln_sigma |> exp()
+  ) +
+  geom_violin()
+
+```
+
+## Multiple species
+
+Now we want to run the Stan code on many species, not just one.
+
+I decided to create all the observed combinations of species, lat, and year, rather than all of the possible combinations (a matrix of unique species by year by location) as that would create many empty combinations.
+
+```{r data-prep-allspp}
+
+obs_data_allspp <- 
+  obs_data_full |> 
+  add_count(species_name, 
+            lat_grid, 
+            survey_year, 
+            name = "n_sizeclasses") |> 
+  filter(n_sizeclasses >= 3) |> 
+  add_count(species_name, 
+            lat_grid, 
+            survey_year, 
+            wt = n,
+            name = "total_n") |> 
+  mutate(prob_obs = n/total_n) 
+
+
+combinations_table_allspp <- 
+ obs_data_allspp |> 
+  select(species_name, 
+         lat_grid, 
+         survey_year) |> 
+  distinct() |> 
+  mutate(combination_id = row_number())
+
+```
+
+```{r}
+
+# Z-transform the location and year
+stan_data_combinations_allspp <- 
+  obs_data_allspp |> 
+  select(-n_sizeclasses) |> 
+  uncount(n) |> 
+  left_join(rls_bins, 
+            by = join_by(size_class)) |> 
+  left_join(combinations_table_allspp, 
+            by = join_by(species_name, lat_grid, survey_year)) |> 
+  mutate(lat_grid_Z = (lat_grid-mean_latgrid)/sd_latgrid,
+         survey_year_Z = (survey_year-mean_year)/sd_year) |> 
+  count(species_name, 
+        size_index, 
+        size_class, 
+        combination_id, 
+        lat_grid_Z, 
+        survey_year_Z)
+
+# Data for multiple distribution stan model
+data_list_combinations_allspp <- list(
+  n_combinations = max(stan_data_combinations_allspp$combination_id),
+  n_sizebins = max(stan_data_combinations_allspp$size_index), 
+  n_observations = nrow(stan_data_combinations_allspp), 
+  sizebin_id = stan_data_combinations_allspp$size_index, 
+  combination_id = stan_data_combinations_allspp$combination_id,
+  n_individuals = stan_data_combinations_allspp$n,
+  upper_sizebin = cutoff[1:max(stan_data_combinations_allspp$size_index)]
+)
+
+file_name <- 
+  "stan_lnorm_gridcells_combinations_fitted_allspp" |> 
+  stan_output_path()
+stan_file <- "lnorm_gridcells_combinations" |> stan_input_path()
+
+# model fitting
+if(!file.exists(file_name)){
+  stan(file = stan_file, 
+              data = data_list_combinations_allspp,
+              iter = 600, 
+              warmup = 200, 
+              chains = 3, 
+              refresh = 200, 
+              seed = 1) |> 
+    write_rds(file_name)
+} 
+
+model_combinations_allspp <- 
+  read_rds(file_name)
+```
+
+mean of the lognormal distribution is:
+
+$$
+m=e^{\mu + 2\sigma^2}​,
+$$
+
+```{r}
+# 
+# model_combinations_allspp_pars <-
+#   get_par(model_combinations, "ln_sigma") |> 
+#   left_join(get_par(model_combinations_allspp, "ln_mu"), 
+#             by = join_by(combination_id)) |> 
+#   left_join(combinations_table_allspp, 
+#             by = join_by(combination_id)) |> 
+#   mutate(mean_size = exp(ln_mu + (2*(ln_sigma^2))))
+# 
+# 
+# model_combinations_allspp_pars |> 
+#   ggplot() +
+#   aes(
+#     x = lat_grid, 
+#     y = ln_mu, 
+#     colour = species_name
+#   ) +
+#   geom_path() +
+#   theme(legend.position = "none")
+# 
+# 
+# 
+# lm(ln_mu ~ lat_grid + species_name + survey_year, data = model_combinations_allspp_pars)
+# 
+# 
+# mod1 <- lmerTest::lmer(mean_size ~ lat_grid + (1|species_name) + survey_year, data = model_combinations_allspp_pars)
+# summary(mod1)
+# 
+# 
+# # higher latitudes (warmer) have smaller species
+# 
+# 
+# 
+# 
+# predict(object = mod1, newdata = list())
+# 
+# model_combinations_allspp_pars$mean_size |> hist()
+# 
+# 
+# 
+# model_combinations_allspp_pars |> 
+#   ggplot() +
+#   aes(x = ln_mu, 
+#       colour = species_name) +
+#   geom_density()+
+#   theme(legend.position = "none")
+# 
+# model_combinations_allspp_pars |> 
+#   ggplot() +
+#   aes(exp(ln_sigma)) +
+#   geom_density()
+# 
+# 
+# 
+# model_combinations_allspp_pars |> 
+#   mutate(mean_size = exp(ln_mu + (2*(ln_sigma^2))))
+# 
+# new_data <- 
+# obs_data_allspp |> 
+#   uncount(weights = n) |> 
+#   group_by(species_name, lat_grid, survey_year) |> 
+#   summarise(mean_size = mean(size_class))
+# 
+# 
+# mod2 <- lmerTest::lmer(mean_size ~ lat_grid*survey_year + (1|species_name), data = new_data)
+# summary(mod2)
+# 
+# 
+# 
+# for(i in unique(new_data$species_name)){
+#   file_name  <- paste0("output/figs/mean_size_trends/", i, ".png")
+#   if(!file.exists(file_name)){
+#       p <-
+#     new_data |> 
+#   filter(species_name == i) |> 
+#   ggplot(aes(x = survey_year,
+#              y = mean_size)) +
+#   geom_path() +
+#   facet_wrap(~lat_grid) 
+#   
+#   
+#   ggsave(filename = file_name, 
+#          plot = p)
+#   }
+#   
+# 
+# }
+
+```

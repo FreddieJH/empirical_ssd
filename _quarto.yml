@@ -6,17 +6,22 @@ website:
   title: "Empirical species size distribution"
   sidebar:
     search: false
-    style: "docked"
+    style: "floating"
     contents:
       - href: index.qmd
         text: Background
-      - href: n3_spp_system.qmd
+      - href: data_cleaning.qmd
+        text: Data cleaning
+      - href: simple_system.qmd
         text: Simple system
       - href: shane_jervisbay.qmd
         text: Jervis Bay (Shane)
+      - href: gridcell.qmd
+        text: Gridcell (single species)
+      - href: universal.qmd
+        text: Universal body size
 
 format:
   html:
     theme: cosmo
-    css: styles.css
     toc: true

@@ -1,0 +1,191 @@
+---
+title: "Model fitting"
+editor: visual
+---
+
+
+# Set-up
+
+## 
+
+We want to fit a single model to all species, we want this model to test the Giometto hypothesis, that all species can be described by a single body size shape, that is determined by a single parameter, the mean body size of the species.
+
+The lognormal distribution can be written as:
+
+$$
+l \sim \mathcal{LN}(\mu, \sigma)
+$$
+
+this is equivalent to:
+
+$$
+log(l) \sim \mathcal{N}(\mu, \sigma)
+$$
+
+we want a distribution of individuals, i, belonging to species, k, can be written as:
+
+$$
+l_{k, i} \sim \mathcal{LN}(\mu_k, \sigma_k)
+$$
+
+but within each species, we can have spatial, s, and temporal, t, variation in these parameters
+
+$$
+l_{ki} \sim \mathcal{LN}(\mu_{kst}, \sigma_{kst})
+$$
+
+we can define $\mu_{kst}$ as:
+
+$$
+\mu_{kst} = \mu + \beta^\mu_t \mu + \beta^\mu_s \mu + \beta^\mu_k \mu
+$$
+
+and $\sigma_{kst}$ as:
+
+$$
+\sigma_{kst} = \sigma + \beta^\sigma_t \sigma + \beta^\sigma_s \sigma + \beta^\sigma_k \sigma
+$$
+
+similarly we could instead define $\sigma_{kst}$ as a function of $\mu_{kst}$
+
+$$
+\sigma_{kst} = (\beta_1 \mu_{kst} + \beta_2) + \beta^{\sigma}_t \sigma + \beta^{\sigma}_s \sigma + \beta^{\sigma}_k \sigma
+$$
+
+If Giometto's hypothesis is correct, we would expect $\sigma_{kst}$ could be fully explained by $\mu_{kst}$, i.e.:
+
+$$
+\beta_1 \neq 0 \\
+\beta_2 \neq 0 \\
+\beta^\sigma_t = 0 \\
+\beta^\sigma_s = 0 \\
+\beta^\sigma_k = 0
+$$
+
+
+```{r}
+library(tidyverse)
+library(arrow)
+library(lubridate)
+library(rstan)
+
+```
+
+```{r}
+
+# Observational-level data (body size, abundance, species, survey ID)
+obs_data <- 
+  "output/data/dat_obs_cleaned.parquet" |> 
+  read_parquet()
+
+# Survey-level information
+survey_list <- 
+  "data/cleaned/survey_list_m1_aus.parquet" |> 
+  read_parquet() 
+
+# Reef Life Survey (RLS) size class bins
+cutoff <- c(
+  2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
+  seq(from = 62.5, to = 200, by = 12.5), 
+  seq(from = 250, to = 500, by = 50))
+
+
+# Body size bin upper and lower bounds
+rls_bins <- 
+  tibble(
+    size_index = 0:length(cutoff),
+    size_class = c(0, cutoff),
+    bin_lwr = (size_class + lag(size_class))/2,
+    bin_upr = (size_class + lead(size_class))/2
+  ) |>
+  filter(size_index != 0)
+
+
+# Gridding latitude and longitude, to be used later
+obs_data_full <- 
+  obs_data |>  
+  left_join(survey_list, by = "survey_id") |> 
+  mutate(lat_grid = floor(latitude), 
+         lon_grid = floor(longitude), 
+         survey_year = year(survey_date)) 
+
+loc_table <- 
+  obs_data_full |> 
+  select(lat_grid) |> 
+  distinct() |> 
+  arrange(lat_grid) |> 
+  rownames_to_column(var = "loc_index") |> 
+  mutate(loc_index = as.numeric(loc_index))
+
+species_table <- 
+  obs_data_full |> 
+  select(species_name) |> 
+  distinct() |> 
+  arrange(species_name) |> 
+  rownames_to_column(var = "species_index") |> 
+  mutate(species_index = as.numeric(species_index))
+
+year_table <- 
+  obs_data_full |> 
+  select(survey_year) |> 
+  distinct() |> 
+  arrange(survey_year) |> 
+  rownames_to_column(var = "year_index") |> 
+  mutate(year_index = as.numeric(year_index))
+
+```
+
+```{r}
+
+species_subset <- 
+  obs_data_full |> 
+  count(species_name) |> 
+  arrange(desc(n)) |>
+  rownames_to_column() |> 
+  filter(rowname %in% 30:34) |>  
+  pull(species_name)
+
+stan_data <- 
+  obs_data_full |> 
+  left_join(rls_bins, by = join_by(size_class)) |> 
+  left_join(loc_table, by = join_by(lat_grid)) |> 
+  left_join(species_table, by = join_by(species_name)) |> 
+  left_join(year_table, by = join_by(survey_year)) |> 
+  filter(species_name %in% species_subset)
+
+# Data for stan model
+data_list <- list(
+  N = nrow(stan_data), 
+  K = max(stan_data$size_index),
+  L = max(stan_data$loc_index),
+  Y = max(stan_data$year_index), 
+  S = max(stan_data$species_index), 
+  loc_indx = stan_data$loc_index, 
+  year_indx = stan_data$year_index, 
+  species_indx = stan_data$species_index, 
+    loc = stan_data$lat_grid, 
+  year = stan_data$survey_year, 
+  bin = stan_data$size_index,
+  uprsize = stan_data$bin_upr
+)
+
+
+# model fitting
+# if(!file.exists("output/stan/stan_single_mod.rds")){
+  stan(file = 'data/stan_models/lnorm_single_mod.stan', 
+              data = data_list,
+              iter = 600, 
+              warmup = 200, 
+              chains = 3, 
+              refresh = 200, 
+              seed = 2) |> 
+    write_rds("output/stan/stan_single_mod.rds")
+# } 
+
+```
+
+```{r}
+"output/stan/stan_single_mod.rds" |> 
+  read_rds()
+```
+

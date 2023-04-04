@@ -1,0 +1,232 @@
+---
+title: "Universal body size"
+author: "Freddie Heather"
+editor: visual
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+
+execute:
+  freeze: auto  # re-render only when source changes
+---
+
+```{r setup}
+#| include = FALSE
+
+library(knitr, quietly = TRUE)
+
+knitr::opts_chunk$set(
+  error = FALSE,
+  warning = FALSE, 
+  message = FALSE
+)
+
+source("R/data_cleaning.R")
+
+fig_output_path <- \(x) paste0("output/figs/", x, ".png")
+stan_input_path <- \(x) paste0("data/stan_models/", x, ".stan")
+stan_output_path <- \(x) paste0("output/stan/", x, ".rds")
+
+```
+
+## Background
+
+**Main question:** Is there a universal shape of species body size distributions?
+
+The shape is determined by the probability of being a certain size. I.e. it is the probability distribution that we are interested in.
+
+This can be re-framed by asking the question: Do all species have the same coefficient of variation in their distribution (i.e. sdlog in the lognormal distribution)?
+
+## Analysis
+
+```{r packages}
+
+library(tidyverse, quietly = TRUE)
+library(lubridate, quietly = TRUE)
+library(rstan, quietly = TRUE)
+library(magick)
+
+```
+
+```{r import}
+
+# Observational-level data (body size, abundance, species, survey ID)
+# Only selecting non-targeted species
+obs_data <- 
+  "data/raw/obs_data_m1_aus.parquet" |> 
+  read_parquet() |> 
+  filter(species_name %in% read_rds("output/data/selected_spp.rds")) |> 
+  filter(!(species_name == "Neoodax balteatus" & size_class == 150))
+
+# Survey-level information
+survey_list <- 
+  "data/cleaned/survey_list_m1_aus.parquet" |> 
+  read_parquet() 
+
+
+# Reef Life Survey (RLS) size class bins
+cutoff <- c(
+  2.5, 5, 7.5, 10, 12.5, 15, 20, 25, 30, 35, 40, 50, 
+  seq(from = 62.5, to = 200, by = 12.5), 
+  seq(from = 250, to = 500, by = 50))
+
+
+# Body size bin upper and lower bounds
+rls_bins <- 
+  tibble(
+    size_index = 0:length(cutoff),
+    size_class = c(0, cutoff),
+    bin_lwr = (size_class + lag(size_class))/2,
+    bin_upr = (size_class + lead(size_class))/2
+  ) |>
+  filter(size_index != 0)
+
+```
+
+### Single site
+
+Let's look at a single location, across all time, and see the distribution of body sizes.
+
+```{r singlesite-filter}
+
+# "BI-S1" is the site with most surveys
+selected_site <- 
+  survey_list |> 
+  add_count(site_code) |> 
+  arrange(desc(n)) |> 
+  head(1) |> 
+  pull(site_code)
+
+
+data_filter_site <- 
+  obs_data |> 
+  left_join(survey_list, by = join_by(survey_id)) |> 
+  filter(site_code == selected_site) |> 
+  count(species_name, size_class, name = "n_indivs") |> 
+  add_count(species_name, 
+            wt = n_indivs,
+            name = "n_indivs_total") |> 
+  mutate(p = n_indivs/n_indivs_total)
+
+```
+
+```{r singlesite-plot-ssd}
+
+
+data_filter_site |> 
+  ggplot() +
+  aes(
+    x = size_class, 
+    y = p
+  ) +
+  geom_point() + 
+  geom_line() +
+  facet_wrap(~species_name)
+
+```
+
+A single site does not give you much information. What about a single ecoregion?
+
+### Single ecoregion
+
+```{r singleecor-filter}
+
+# "Bassian" is the ecoregion with most surveys
+selected_ecoregion <- 
+  survey_list |> 
+  add_count(ecoregion) |> 
+  arrange(desc(n)) |> 
+  head(1) |> 
+  pull(ecoregion)
+
+
+data_filter_ecor <- 
+  obs_data |> 
+  left_join(survey_list, by = join_by(survey_id)) |> 
+  filter(ecoregion == selected_ecoregion) |> 
+  count(species_name, size_class, name = "n_indivs") |> 
+  add_count(species_name, 
+            wt = n_indivs,
+            name = "n_indivs_total") |> 
+  mutate(p = n_indivs/n_indivs_total)
+
+```
+
+```{r singleecor-plot-ssd}
+
+
+data_filter_ecor |> 
+  ggplot() +
+  aes(
+    x = size_class, 
+    y = p
+  ) +
+  geom_point() + 
+  geom_line() +
+  facet_wrap(~species_name)
+
+```
+
+These look more like reasonable distributions.
+
+### Single ecoregion through time
+
+```{r singleecor-byyear-filter}
+
+data_filter_ecor_byyear <- 
+  obs_data |> 
+  left_join(survey_list, by = join_by(survey_id)) |> 
+  filter(ecoregion == selected_ecoregion) |> 
+  mutate(year = year(survey_date) |> as.integer()) |> 
+  count(species_name, size_class, year,
+        name = "n_indivs") |> 
+  add_count(species_name, 
+            year,
+            wt = n_indivs,
+            name = "n_indivs_total") |> 
+  mutate(p = n_indivs/n_indivs_total) 
+
+```
+
+```{r singleecor-byyear-plot-ssd}
+
+
+for(yr in sort(unique(data_filter_ecor_byyear$year))){
+  
+  file_name <- paste0("output/figs/singleecor_byyear/", yr,".png")
+  if(!file.exists(file_name)){
+      dat <- 
+    data_filter_ecor_byyear |> 
+    mutate(p = ifelse(year == yr, p, NA))
+  
+  plot <-  
+     dat|> 
+    ggplot() +
+    aes(
+      x = size_class, 
+      y = p
+    ) +
+    geom_point() + 
+    geom_path(data = dat |> drop_na()) +
+    facet_wrap(~species_name) 
+  
+  
+    ggsave(filename = file_name, 
+           plot = plot)
+  } 
+
+}
+
+
+
+#"output/figs/singleecor_byyear/" |> 
+#  list.files(full.names = TRUE) |> 
+ # map(image_read) |> 
+  #image_join() |> 
+  #image_animate(fps = 1) |> 
+  #image_write(path = "output/figs/singleecor_byyear/ssd.gif")
+
+
+
+# xx2 <- image_join(xx)
+# xx3 <- image_animate(xx2, fps = 1)
+# image_write(xx3, path = "output/figs/singleecor_byyear/ssd.gif")
+```

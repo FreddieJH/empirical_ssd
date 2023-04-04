@@ -14,12 +14,12 @@ data {
 }
  
 parameters {
-  real<lower= -1.0,upper=1.0>  ln_sigma; // coef of variation; lengths across species
-  vector<lower= 0.5,upper=4.0>[S] ln_mu; // mean lengths for each species
+  vector<lower= -1.0, upper=1.0>[S]  ln_sigma; // coef of variation; lengths across species
+  vector<lower= 0.5, upper=4.0>[S] ln_mu; // mean lengths for each species
 }
 
 model {
-	real sigma; // sd of normal size distribution
+	//real sigma; // sd of normal size distribution
 	real p;     // predicted probability of being in specified bin
 
 	// priors on model parameters
@@ -27,12 +27,12 @@ model {
 	ln_mu    ~ normal(3, 1);     // log-normal prior for community lengths (median)
 	
   for (i in 1:I) { // for each set of lengths
-    sigma = exp(ln_sigma); // species length sigma
+    //sigma = exp(ln_sigma[s[i]]); // species length sigma
     if (b[i] == 1) { // special case (between 0 and 2.5cm)
-       p = lognormal_cdf(l[1], ln_mu[s[i]], sigma); // probability in smallest bin
+       p = lognormal_cdf(l[1], ln_mu[s[i]], exp(ln_sigma[s[i]])); // probability in smallest bin
     } else { // all other bins
-       p = lognormal_cdf(l[b[i]], ln_mu[s[i]], sigma) - 
-         lognormal_cdf(l[b[i]-1], ln_mu[s[i]], sigma); // prob in a non-smalllest bin
+       p = lognormal_cdf(l[b[i]], ln_mu[s[i]], exp(ln_sigma[s[i]])) - 
+         lognormal_cdf(l[b[i]-1], ln_mu[s[i]], exp(ln_sigma[s[i]])); // prob in a non-smalllest bin
     }
     target += n[i]*log(p); // add log-likelihood term
   }
